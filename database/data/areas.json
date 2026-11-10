@@ -1,0 +1,114 @@
+[
+  {
+    "code": "TESORERIA",
+    "name": "Oficina de Tesorería",
+    "description": "Validación de pagos bancarios, emisión de comprobantes y cobranza de aranceles universitarios.",
+    "is_system": true,
+    "has_channels": false,
+    "channels": []
+  },
+  {
+    "code": "MATRICULA",
+    "name": "Dirección de Matrícula y Registros",
+    "description": "Gestión de récords académicos, consolidación de notas, convalidaciones y expedición de constancias oficiales.",
+    "is_system": true,
+    "has_channels": true,
+    "channels": [
+      {
+        "name": "Ventanilla 1: Ing. Ambiental, Psicología, MKT y Turismo",
+        "programs": [
+          "ING-AMB",
+          "PSI",
+          "MKT",
+          "TUR"
+        ]
+      },
+      {
+        "name": "Ventanilla 2: Derecho, Maestrías y Doctorado en Derecho",
+        "programs": [
+          "DER",
+          "M-DCC",
+          "M-DTSS",
+          "M-DPEN",
+          "M-DPRO",
+          "M-DTC",
+          "D-DER"
+        ]
+      },
+      {
+        "name": "Ventanilla 3: Ing. Civil, Sistemas y Arquitectura",
+        "programs": [
+          "ING-CIVIL",
+          "ING-SIST",
+          "ARQ"
+        ]
+      },
+      {
+        "name": "Ventanilla 4: Enfermería, Obstetricia y Odontología",
+        "programs": [
+          "ENF",
+          "OBS",
+          "ODO"
+        ]
+      },
+      {
+        "name": "Ventanilla 5: Administración, Contabilidad y Educación",
+        "programs": [
+          "ADM",
+          "CONT",
+          "EDU",
+          "EDU-ING"
+        ]
+      },
+      {
+        "name": "Ventanilla 6: Posgrado y Segunda Especialización",
+        "programs": [
+          "M-AUD",
+          "M-DESI",
+          "M-DGE",
+          "M-GSTI",
+          "M-GSS",
+          "M-GADS",
+          "M-GP",
+          "M-ODON",
+          "M-PA",
+          "M-PSE",
+          "M-SPDU",
+          "M-SRS",
+          "D-CED",
+          "D-CSA",
+          "SE-DGA",
+          "SE-PSP",
+          "SE-SNA",
+          "SE-ARO",
+          "SE-MFE",
+          "SE-OOM"
+        ]
+      }
+    ]
+  },
+  {
+    "code": "RED-INF",
+    "name": "Red de Informática y Telecomunicaciones",
+    "description": "Administración de accesos a sistemas institucionales, soporte técnico de red y plataformas virtuales.",
+    "is_system": false,
+    "has_channels": false,
+    "channels": []
+  },
+  {
+    "code": "ADMISION",
+    "name": "Oficina Central de Admisión",
+    "description": "Gestión de postulaciones, expedientes de ingreso universitario y validación de prospectos.",
+    "is_system": false,
+    "has_channels": false,
+    "channels": []
+  },
+  {
+    "code": "BIENESTAR",
+    "name": "Oficina de Bienestar Universitario",
+    "description": "Servicio social, atención médica estudiantil, seguro universitario y becas de comedor.",
+    "is_system": false,
+    "has_channels": false,
+    "channels": []
+  }
+]

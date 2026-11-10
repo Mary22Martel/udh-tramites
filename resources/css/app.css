@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/plus-jakarta-sans';
+
+@source '../**/*.blade.php';
+@source '../**/*.{js,jsx}';
+
+/* Modo oscuro controlado por la clase .dark en <html> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Colores institucionales UDH (tomados del escudo) */
+@theme {
+    --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+    --color-teal-udh: #2eb8a0;
+    --color-teal-udh-600: #219682;
+    --color-teal-udh-50: #e8f8f4;
+    --color-gold-udh: #f5b400;
+    --color-sand-udh: #f2d68a;
+    --color-navy-udh: #0f2440;
+}
+
+/* Tokens que cambian entre modo claro y oscuro */
+@theme inline {
+    --color-bg: var(--bg);
+    --color-surface: var(--surface);
+    --color-surface-2: var(--surface-2);
+    --color-line: var(--line);
+    --color-ink: var(--ink);
+    --color-muted: var(--muted);
+    --color-sidebar: var(--sidebar);
+    --color-accent: var(--accent);
+}
+
+:root {
+    --bg: #f3f6fa;
+    --surface: #ffffff;
+    --surface-2: #f6f8fb;
+    --line: #e2e8f0;
+    --ink: #0f1e33;
+    --muted: #5d6e84;
+    --sidebar: #ffffff;
+    --accent: #219682;
+    color-scheme: light;
+}
+
+.dark {
+    --bg: #0c1828;
+    --surface: #112238;
+    --surface-2: #0e1d31;
+    --line: #1e3350;
+    --ink: #e7eef7;
+    --muted: #8ea2bb;
+    --sidebar: #0a1625;
+    --accent: #3cc8ae;
+    color-scheme: dark;
+}
+
+body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+}
+
+.kicker {
+    @apply text-xs font-bold uppercase tracking-[0.22em] text-accent;
+}
+
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+
+@media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+}
