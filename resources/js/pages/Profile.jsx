@@ -37,7 +37,7 @@ export default function Profile() {
     return (
         <div className="mx-auto max-w-4xl">
             <PageHeader kicker="Cuenta" title="Mi perfil" />
-            <div className="grid gap-5 md:grid-cols-[1fr_1.1fr]">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-[1fr_1.1fr]">
                 <Card className="p-6">
                     <div className="mb-5 grid size-16 place-items-center rounded-2xl bg-teal-udh/12 text-xl font-extrabold text-teal-udh-600 dark:text-teal-300">{user.initials}</div>
                     <dl className="space-y-3">

@@ -11,9 +11,9 @@ const EMPTY = {
     payment_concept: '', target_scope: 'TODOS', program_ids: [], faculty_ids: [], is_active: true,
     requirements: [],
     steps: [
-        { name: 'Presentación de solicitud', description: 'El estudiante registra su solicitud y adjunta requisitos.', area: 'ESTUDIANTE', action_required: 'SOLICITUD', document_requirement: null, can_observe: false, can_reject: false },
-        { name: 'Validación de pago', description: 'Tesorería verifica el pago.', area: 'TESORERIA', action_required: 'VERIFICAR_PAGO', document_requirement: null, can_observe: true, can_reject: true },
-        { name: 'Emisión del documento', description: 'Matrícula emite el documento oficial.', area: 'MATRICULA', action_required: 'EMITIR_CONSTANCIA', document_requirement: 'CONSTANCIA_OFICIAL', can_observe: true, can_reject: true },
+        { name: 'Solicitud del estudiante', description: 'El estudiante registra su solicitud y su justificación.', area: 'ESTUDIANTE', action_required: 'SOLICITUD', document_requirement: null, can_observe: false, can_reject: false },
+        { name: 'Revisión del programa', description: 'El programa académico revisa y aprueba.', area: 'PROGRAMA_ACADEMICO', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_reject: true },
+        { name: 'Matrícula · entrega del documento', description: 'Matrícula aprueba y sube el documento final para el estudiante.', area: 'MATRICULA', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_reject: true },
     ],
 };
 const FILE_TYPES = ['.pdf', '.jpg', '.png', '.docx'];
@@ -46,7 +46,8 @@ export default function ProcedureEditor() {
     const save = async () => {
         setBusy(true);
         try {
-            const payload = { ...form, cost: Number(form.cost), estimated_days: Number(form.estimated_days), code: form.code || null };
+            const steps = form.steps.map((st, i) => ({ ...st, document_requirement: null, action_required: i === 0 ? 'SOLICITUD' : st.area === 'TESORERIA' ? 'VERIFICAR_PAGO' : 'APROBAR' }));
+            const payload = { ...form, steps, cost: Number(form.cost), estimated_days: Number(form.estimated_days), code: form.code || null };
             const { data } = id ? await api.put(`/procedures/${id}`, payload) : await api.post('/procedures', payload);
             toast.success(id ? `Trámite actualizado (versión ${data.data.version}).` : 'Trámite creado.');
             navigate('/admin/tramites');
@@ -65,7 +66,7 @@ export default function ProcedureEditor() {
 
             <Card className="mb-5 p-6">
                 <p className="kicker mb-4">Datos generales</p>
-                <div className="grid gap-4 md:grid-cols-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                     <Field label="Nombre del trámite" className="md:col-span-4"><Input value={form.name} onChange={(e) => set('name', e.target.value)} /></Field>
                     <Field label="Código" hint="Vacío = automático" className="md:col-span-2"><Input value={form.code || ''} onChange={(e) => set('code', e.target.value.toUpperCase())} /></Field>
                     <Field label="Descripción" className="md:col-span-6"><Textarea rows={2} value={form.description || ''} onChange={(e) => set('description', e.target.value)} /></Field>
@@ -110,7 +111,7 @@ export default function ProcedureEditor() {
                 </div>
                 <div className="space-y-3">
                     {form.requirements.map((r, i) => (
-                        <div key={i} className="grid gap-3 rounded-xl border border-line bg-surface-2/50 p-4 md:grid-cols-12">
+                        <div key={i} className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-surface-2/50 p-4 md:grid-cols-12">
                             <Field label="Requisito" className="md:col-span-4"><Input value={r.name} onChange={(e) => setItem('requirements', i, 'name', e.target.value)} /></Field>
                             <Field label="Indicaciones" className="md:col-span-4"><Input value={r.description || ''} onChange={(e) => setItem('requirements', i, 'description', e.target.value)} /></Field>
                             <Field label="MB máx." className="md:col-span-1"><Input type="number" min="1" value={r.max_size_mb} onChange={(e) => setItem('requirements', i, 'max_size_mb', Number(e.target.value))} /></Field>
@@ -132,9 +133,9 @@ export default function ProcedureEditor() {
             <Card className="mb-5 p-6">
                 <div className="mb-4 flex items-center justify-between">
                     <p className="kicker flex items-center gap-2"><Workflow className="size-4" /> Flujo de atención ({form.steps.length} pasos)</p>
-                    <Button size="sm" variant="secondary" icon={Plus} onClick={() => set('steps', [...form.steps, { name: '', description: '', area: 'MATRICULA', action_required: 'REVISAR_REQUISITOS', document_requirement: null, can_observe: true, can_reject: true }])}>Agregar paso</Button>
+                    <Button size="sm" variant="secondary" icon={Plus} onClick={() => set('steps', [...form.steps, { name: '', description: '', area: 'MATRICULA', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_reject: true }])}>Agregar paso</Button>
                 </div>
-                <Callout className="mb-4">El <b>paso 1</b> siempre es la solicitud del estudiante. "Programa Académico" y "Decanato" se asignan automáticamente según la carrera del estudiante; en áreas con ventanillas (como Matrícula) se reparte según la carrera.</Callout>
+                <Callout className="mb-4">El <b>paso 1</b> es la solicitud del estudiante. Cada área siguiente <b>revisa y aprueba</b> (puede adjuntar un archivo opcional que verá el estudiante). El <b>último paso</b> sube el documento final que recibe el estudiante. «Programa académico» y «Facultad» se asignan solos según la carrera del estudiante. Agrega <b>Tesorería</b> solo si este trámite exige que apruebe el pago.</Callout>
                 <ol className="space-y-3">
                     {form.steps.map((s, i) => (
                         <li key={i} className="flex gap-3">
@@ -142,7 +143,7 @@ export default function ProcedureEditor() {
                                 <span className="grid size-8 shrink-0 place-items-center rounded-full bg-navy-udh text-sm font-bold text-white dark:bg-teal-udh">{i + 1}</span>
                                 {i < form.steps.length - 1 && <span className="w-0.5 flex-1 bg-line" />}
                             </div>
-                            <div className="mb-1 grid flex-1 gap-3 rounded-xl border border-line bg-surface-2/50 p-4 md:grid-cols-12">
+                            <div className="mb-1 grid grid-cols-1 flex-1 gap-3 rounded-xl border border-line bg-surface-2/50 p-4 md:grid-cols-12">
                                 <Field label="Nombre del paso" className="md:col-span-5"><Input value={s.name} onChange={(e) => setItem('steps', i, 'name', e.target.value)} /></Field>
                                 <Field label="Área responsable" className="md:col-span-4">
                                     <Select value={s.area} disabled={i === 0} onChange={(e) => setItem('steps', i, 'area', e.target.value)}>
@@ -154,23 +155,13 @@ export default function ProcedureEditor() {
                                     <IconButton icon={ArrowDown} label="Bajar" disabled={i === 0 || i === form.steps.length - 1} onClick={() => move('steps', i, 1)} />
                                     <IconButton icon={Trash2} tone="danger" label="Quitar" disabled={i === 0} onClick={() => set('steps', form.steps.filter((_, j) => j !== i))} />
                                 </div>
-                                <Field label="Descripción" className="md:col-span-5"><Input value={s.description || ''} onChange={(e) => setItem('steps', i, 'description', e.target.value)} /></Field>
-                                <Field label="Acción" className="md:col-span-4">
-                                    <Select value={s.action_required} disabled={i === 0} onChange={(e) => setItem('steps', i, 'action_required', e.target.value)}>
-                                        {Object.entries(meta.actions).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                                    </Select>
-                                </Field>
-                                <Field label="Emite documento" className="md:col-span-3">
-                                    <Select value={s.document_requirement || ''} disabled={i === 0} onChange={(e) => setItem('steps', i, 'document_requirement', e.target.value || null)}>
-                                        <option value="">Ninguno</option>
-                                        {Object.entries(meta.documents).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                                    </Select>
-                                </Field>
+                                <Field label="Descripción" className="md:col-span-12"><Input value={s.description || ''} onChange={(e) => setItem('steps', i, 'description', e.target.value)} /></Field>
                                 {i > 0 && (
                                     <div className="flex flex-wrap gap-5 md:col-span-12">
                                         <Toggle checked={s.can_observe} onChange={(v) => setItem('steps', i, 'can_observe', v)} label="Puede observar" />
                                         <Toggle checked={s.can_reject} onChange={(v) => setItem('steps', i, 'can_reject', v)} label="Puede denegar" />
-                                        {s.action_required === 'VERIFICAR_PAGO' && <Badge tone="gold">Valida el pago</Badge>}
+                                        {s.area === 'TESORERIA' && <Badge tone="gold">Tesorería aprueba el pago</Badge>}
+                                        {i === form.steps.length - 1 && <Badge tone="navy">Último paso: sube el documento final</Badge>}
                                     </div>
                                 )}
                             </div>

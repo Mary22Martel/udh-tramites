@@ -30,7 +30,7 @@ export default function StaffHome() {
                 <StatCard label="Atendidas este mes" value={data.kpis.this_month} icon={TrendingUp} tone="teal" />
                 <StatCard label="Observaciones emitidas" value={data.kpis.observed} icon={MessageSquareWarning} tone="amber" />
             </div>
-            <div className="mb-6 grid gap-5 lg:grid-cols-2">
+            <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
                 <Card className="p-5">
                     <p className="mb-1 font-extrabold text-ink">Actuaciones por mes</p>
                     <p className="mb-4 text-sm text-muted">Aprobaciones, observaciones y denegaciones registradas por ti.</p>

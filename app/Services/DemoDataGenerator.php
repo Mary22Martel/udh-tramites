@@ -20,8 +20,6 @@ class DemoDataGenerator
 
     protected const APELLIDOS = ['Huamán', 'Quispe', 'Ramírez', 'Espinoza', 'Torres', 'Flores', 'Cárdenas', 'Rojas', 'Mendoza', 'Salazar', 'Ponce', 'Albornoz', 'Tucto', 'Ccori', 'Malpartida', 'Berrospi', 'Trujillo', 'Sánchez', 'Martel', 'Araujo', 'Casas', 'Gabriel', 'Ayala', 'Valdivia', 'Durand', 'Robles', 'Céspedes', 'Inga', 'Leandro', 'Soto'];
 
-    protected const BANKS = ['BANCO_NACION', 'BCP', 'BBVA', 'YAPE', 'CAJA_UDH'];
-
     protected const OBSERVATIONS = [
         ['Voucher ilegible', 'Vuelva a adjuntar el comprobante de pago escaneado con buena resolución.'],
         ['Fotografía no cumple el formato', 'La foto debe ser a color, fondo blanco y vestimenta formal.'],
@@ -140,14 +138,18 @@ class DemoDataGenerator
                 $files[$req->id] = ['name' => str_replace(' ', '_', mb_substr($req->name, 0, 40)).'_'.$student->student_code.'.'.$ext, 'size' => random_int(120, 2400) * 1024];
             }
         }
-        $payment = $procedure->requires_payment ? [
-            'method' => self::BANKS[array_rand(self::BANKS)],
-            'operation' => (string) random_int(10000000, 99999999),
-            'date' => $clock->toDateString(),
-        ] : null;
-        $voucher = $payment ? ['name' => 'Voucher_'.$payment['method'].'_'.$payment['operation'].'.pdf', 'size' => random_int(150, 600) * 1024] : null;
+        $s = $this->wf->start($procedure, $student, self::REASONS[array_rand(self::REASONS)], $files);
 
-        $s = $this->wf->start($procedure, $student, self::REASONS[array_rand(self::REASONS)], $files, $payment, $voucher);
+        // Trámite con costo: el estudiante paga su ticket (algunos recientes quedan sin pagar)
+        if ($s->status === 'PENDIENTE_PAGO') {
+            $recent = $clock->diffInDays($realNow) < 10;
+            if (($recent && random_int(1, 100) <= 30) || ! $this->tick($realNow, 5, 60 * 20)) {
+                Carbon::setTestNow();
+
+                return $s;
+            }
+            $s = $this->payTicket($s);
+        }
 
         // Destino de la simulación
         $roll = random_int(1, 100);
@@ -186,7 +188,7 @@ class DemoDataGenerator
                 continue;
             }
 
-            $s = $this->wf->approve($s, $actor, null);
+            $s = $this->approveDemo($s, $actor);
         }
 
         if ($s->status === 'EN_PROCESO' && in_array($outcome, ['OBSERVADO', 'RECHAZADO'], true) && $this->tick($realNow)) {
@@ -209,10 +211,37 @@ class DemoDataGenerator
         return $s;
     }
 
-    /** Avanza el reloj simulado. Devuelve false si llegaría al futuro. */
-    protected function tick(Carbon $realNow): bool
+    /** Aprueba el paso actual como lo haría el área (en el último paso sube el documento final). */
+    public function approveDemo(Submission $s, ?User $actor = null): Submission
     {
-        $next = Carbon::now()->copy()->addMinutes(random_int(90, 60 * 40));
+        $s->loadMissing('procedure.steps');
+        $actor ??= $this->actorFor($s);
+        $isLast = $s->current_step_index >= $s->procedure->steps->count() - 1;
+        $slug = \Illuminate\Support\Str::slug(\Illuminate\Support\Str::limit($s->procedure_name, 40, ''), '_');
+        $file = $isLast
+            ? ['name' => "{$slug}_{$s->code}.pdf", 'size' => random_int(180, 900) * 1024]
+            : (random_int(1, 100) <= 25 ? ['name' => "informe_{$s->code}.pdf", 'size' => random_int(120, 600) * 1024] : null);
+
+        return $this->wf->approve($s, $actor, null, $file);
+    }
+
+    /** Paga el ticket pendiente de una solicitud con un medio de pago al azar (pasarela de prueba). */
+    public function payTicket(Submission $s): Submission
+    {
+        $ticket = $s->payments()->where('status', 'PENDIENTE')->first();
+        if (! $ticket) {
+            return $s;
+        }
+        $method = ['YAPE', 'YAPE', 'YAPE', 'PLIN', 'TARJETA', 'TARJETA'][random_int(0, 5)];
+        $reference = $method === 'TARJETA' ? '•••• '.random_int(1000, 9999) : '9•• ••• '.random_int(100, 999);
+
+        return $this->wf->markPaid($ticket, $method, $reference, 'TX-'.now()->format('ymd').'-'.strtoupper(\Illuminate\Support\Str::random(6)), 'SIMULADO');
+    }
+
+    /** Avanza el reloj simulado. Devuelve false si llegaría al futuro. */
+    protected function tick(Carbon $realNow, int $minMinutes = 90, int $maxMinutes = 60 * 40): bool
+    {
+        $next = Carbon::now()->copy()->addMinutes(random_int($minMinutes, $maxMinutes));
         if ($next->hour < 8 || $next->hour > 18) {
             $next->addHours(14);
         }

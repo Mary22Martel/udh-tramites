@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class SubmissionController extends Controller
 {
-    protected const WITH = ['student:id,name,student_code,email', 'program:id,code,name', 'faculty:id,code,name', 'procedure.steps', 'channel:id,name'];
+    protected const WITH = ['student:id,name,student_code,email', 'program:id,code,name', 'faculty:id,code,name', 'procedure.steps', 'channel:id,name', 'payments'];
 
     public function __construct(protected WorkflowService $wf) {}
 
@@ -78,11 +78,6 @@ class SubmissionController extends Controller
         $data = $request->validate([
             'procedure_id' => ['required', 'exists:procedures,id'],
             'description' => ['required', 'string', 'min:15', 'max:2000'],
-            'payment_method' => ['nullable', 'string'],
-            'payment_operation' => ['nullable', 'string', 'max:30'],
-            'payment_date' => ['nullable', 'date'],
-            'payment_id' => ['nullable', 'integer'],
-            'voucher' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             'files' => ['array'],
             'files.*' => ['file', 'max:51200'],
         ], [
@@ -112,27 +107,8 @@ class SubmissionController extends Controller
             $files[$req->id] = $file;
         }
 
-        // Pago en línea (pasarela): debe ser del estudiante, de este trámite, aprobado y sin usar
-        $online = null;
-        if (! empty($data['payment_id'])) {
-            $online = \App\Models\Payment::where('id', $data['payment_id'])->where('user_id', $user->id)
-                ->where('procedure_id', $procedure->id)->where('status', 'APROBADO')->whereNull('submission_id')->first();
-            if (! $online) {
-                throw ValidationException::withMessages(['payment' => 'El pago en línea no es válido o ya fue usado en otra solicitud.']);
-            }
-        }
-
-        if ($procedure->requires_payment && ! $online && ! $request->hasFile('voucher')) {
-            throw ValidationException::withMessages(['voucher' => 'Paga en línea o adjunta el voucher de tu pago.']);
-        }
-
-        $payment = $procedure->requires_payment && ! $online ? [
-            'method' => $data['payment_method'] ?? null,
-            'operation' => $data['payment_operation'] ?? null,
-            'date' => $data['payment_date'] ?? null,
-        ] : null;
-
-        $s = $this->wf->start($procedure, $user, $data['description'], $files, $payment, $online ? null : $request->file('voucher'), $online);
+        // Si el trámite tiene costo, la solicitud queda "Pendiente de pago" y se genera su ticket en "Mis pagos"
+        $s = $this->wf->start($procedure, $user, $data['description'], $files);
 
         return ['data' => Presenter::submissionDetail($s->load(self::WITH), $user)];
     }
@@ -141,10 +117,9 @@ class SubmissionController extends Controller
     {
         $data = $request->validate([
             'comment' => ['nullable', 'string', 'max:2000'],
-            'official_number' => ['nullable', 'string', 'max:120'],
-            'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:20480'],
-        ]);
-        $s = $this->wf->approve($submission, $request->user(), $data['comment'] ?? null, $request->file('file'), $data['official_number'] ?? null);
+            'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx,zip', 'max:20480'],
+        ], ['file.mimes' => 'Formatos permitidos: PDF, imagen, Word, Excel o ZIP.']);
+        $s = $this->wf->approve($submission, $request->user(), $data['comment'] ?? null, $request->file('file'));
 
         return ['data' => Presenter::submissionDetail($s->load(self::WITH), $request->user())];
     }
@@ -197,31 +172,6 @@ class SubmissionController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => ($inline ? 'inline' : 'attachment').'; filename="'.$name.'"',
         ]);
-    }
-
-    /** Verificación pública del documento final (código QR). */
-    public function verify(string $code)
-    {
-        $s = Submission::with(['student:id,name,student_code', 'program:id,name', 'faculty:id,name'])
-            ->where('final_document_code', $code)->orWhere('code', $code)->first();
-
-        if (! $s) {
-            return response(['valid' => false], 404);
-        }
-
-        return [
-            'valid' => $s->status === 'FINALIZADO',
-            'code' => $s->code,
-            'document_code' => $s->final_document_code,
-            'status' => $s->status,
-            'procedure_name' => $s->procedure_name,
-            'student_name' => $s->student?->name,
-            'student_code' => $s->student?->student_code,
-            'program' => $s->program?->name,
-            'faculty' => $s->faculty?->name,
-            'finished_at' => $s->finished_at?->toIso8601String(),
-            'created_at' => $s->created_at?->toIso8601String(),
-        ];
     }
 
     /** Exportar a CSV (se abre en Excel). */

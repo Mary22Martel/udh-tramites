@@ -71,5 +71,6 @@ export function homeFor(user) {
     if (!user) return '/login';
     if (user.role === 'ADMINISTRADOR') return '/admin';
     if (user.role === 'ESTUDIANTE') return '/inicio';
+    if (user.role === 'TESORERIA') return '/pagos';
     return '/bandeja';
 }

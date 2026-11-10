@@ -62,7 +62,7 @@ function Faculties() {
                 <Button variant="secondary" icon={Plus} onClick={() => setEdit({ type: 'program', item: {} })}>Nueva carrera</Button>
                 <Button icon={Plus} onClick={() => setEdit({ type: 'faculty', item: {} })}>Nueva facultad</Button>
             </div>
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {data.map((f) => (
                     <Card key={f.id} className="p-5">
                         <div className="flex items-start gap-3">
@@ -138,7 +138,7 @@ function ChannelsModal({ area, staff, onClose, onSaved }) {
                 <div className="mt-5 space-y-3">
                     {unassigned.length > 0 && <Callout tone="warning">Carreras sin ventanilla (las verá solo la jefatura): {unassigned.map((p) => p.code).join(', ')}</Callout>}
                     {channels.map((c, i) => (
-                        <div key={i} className="grid gap-3 rounded-xl border border-line bg-surface-2/50 p-4 md:grid-cols-2">
+                        <div key={i} className="grid grid-cols-1 gap-3 rounded-xl border border-line bg-surface-2/50 p-4 md:grid-cols-2">
                             <Field label="Nombre de la ventanilla"><Input value={c.name} onChange={(e) => setC(i, 'name', e.target.value)} /></Field>
                             <Field label="Operador responsable">
                                 <Select value={c.responsible_id} onChange={(e) => setC(i, 'responsible_id', e.target.value)}>
@@ -197,7 +197,7 @@ function Areas() {
         <>
             <Callout className="mb-4">Las áreas centrales atienden pasos del flujo de los trámites. <b>Tesorería</b> y <b>Matrícula</b> son áreas del sistema. Puedes crear otras (por ejemplo, Biblioteca) y usarlas en el constructor de trámites.</Callout>
             <div className="mb-4 flex justify-end"><Button icon={Plus} onClick={() => setEdit({})}>Nueva área</Button></div>
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {data.map((a) => (
                     <Card key={a.id} className="p-5">
                         <div className="flex items-start gap-3">

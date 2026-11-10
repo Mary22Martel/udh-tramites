@@ -17,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['role' => \App\Http\Middleware\EnsureRole::class]);
+        // Culqi llama al webhook desde sus servidores (sin token CSRF)
+        $middleware->validateCsrfTokens(except: ['api/webhooks/*']);
         $middleware->redirectGuestsTo(fn ($request) => $request->is('api/*') ? null : '/login');
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -27,7 +27,21 @@ export default function Reports() {
             <PageHeader kicker="Reportes" title="Trámites por carrera" description="Cuántos trámites tiene disponibles cada carrera (pregrado, segunda especialización, maestrías y doctorados) y cuántas solicitudes ha registrado."
                 actions={<Button variant="secondary" icon={Download} onClick={exportCsv}>Exportar CSV</Button>} />
             <Callout className="mb-5">Cada carrera tiene disponibles los trámites que figuran para ella en el reporte del sistema académico. <b>Exclusivos</b> = trámites que solo tiene esa carrera ({totals.own} en total). Haz clic en una fila para ver el detalle.</Callout>
-            <Card className="overflow-x-auto">
+            <Card className="divide-y divide-line md:hidden">
+                {data.data.map((r) => (
+                    <div key={r.id} className="px-4 py-3.5">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0"><p className="font-bold text-ink">{r.name}</p><p className="text-xs text-muted">{r.level} · {r.available_procedures} trámites disponibles</p></div>
+                            <p className="shrink-0 text-xl font-extrabold text-ink">{r.total}</p>
+                        </div>
+                        <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-surface-2">
+                            {r.total > 0 && [['finalizado', 'bg-teal-udh'], ['en_proceso', 'bg-sky-500'], ['observado', 'bg-amber-500'], ['rechazado', 'bg-red-500']].map(([k, c]) => <div key={k} className={c} style={{ width: `${(r[k] / r.total) * 100}%` }} />)}
+                        </div>
+                        <p className="mt-1.5 text-xs text-muted">{r.finalizado} finalizadas · {r.en_proceso} en proceso · {fmtMoney(r.revenue)}</p>
+                    </div>
+                ))}
+            </Card>
+            <Card className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[900px] text-sm">
                     <thead>
                         <tr className="border-b border-line text-left text-xs tracking-wider text-muted uppercase">
@@ -63,7 +77,7 @@ export default function Reports() {
                                 {open === r.id && (
                                     <tr className="border-b border-line bg-surface-2/60">
                                         <td colSpan={9} className="px-5 py-4">
-                                            <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                                 <div className="grid grid-cols-4 gap-2 text-center">
                                                     {[['En proceso', r.en_proceso, 'text-sky-600'], ['Observadas', r.observado, 'text-amber-600'], ['Finalizadas', r.finalizado, 'text-teal-udh-600'], ['Denegadas', r.rechazado, 'text-red-600']].map(([l, v, c]) => (
                                                         <div key={l} className="rounded-xl bg-surface p-3 ring-1 ring-line"><p className={cx('text-xl font-extrabold', c)}>{v}</p><p className="text-[11px] text-muted">{l}</p></div>

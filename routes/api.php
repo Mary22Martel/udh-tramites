@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::post('/demo-login', [AuthController::class, 'demoLogin']);
 Route::get('/demo-accounts', [AuthController::class, 'demoAccounts']);
-Route::get('/verificar/{code}', [SubmissionController::class, 'verify']);
+Route::post('/webhooks/culqi', [PaymentController::class, 'culqiWebhook']);
 
 Route::middleware('auth')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
@@ -49,9 +49,19 @@ Route::middleware('auth')->group(function () {
     Route::post('/submissions/{submission}/correct', [SubmissionController::class, 'correct']);
     Route::get('/documents/{document}/download', [SubmissionController::class, 'download']);
 
-    // Pago en línea (simulado)
-    Route::get('/payments/pending', [PaymentController::class, 'pending']);
-    Route::post('/payments/simulate', [PaymentController::class, 'simulate'])->middleware('throttle:20,1');
+    // Pagos
+    Route::get('/payments/config', [PaymentController::class, 'config']);
+    Route::get('/payments/mine', [PaymentController::class, 'mine']);
+    Route::get('/payments', [PaymentController::class, 'index']);              // Tesorería / Admin
+    Route::get('/payments-export', [PaymentController::class, 'export']);      // Tesorería / Admin
+    Route::get('/payments/{payment}', [PaymentController::class, 'show']);
+    Route::get('/payments/{payment}/receipt', [PaymentController::class, 'receipt']);
+    Route::middleware('throttle:20,1')->group(function () {
+        Route::post('/payments/{payment}/simulate', [PaymentController::class, 'simulate']);
+        Route::post('/payments/{payment}/culqi/charge', [PaymentController::class, 'culqiCharge']);
+        Route::post('/payments/{payment}/culqi/order', [PaymentController::class, 'culqiOrder']);
+        Route::post('/payments/{payment}/culqi/check', [PaymentController::class, 'culqiCheck']);
+    });
 
     // Solo administrador
     Route::middleware('role:ADMINISTRADOR')->group(function () {

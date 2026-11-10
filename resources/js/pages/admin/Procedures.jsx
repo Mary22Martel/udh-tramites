@@ -27,7 +27,7 @@ function BulkModal({ open, onClose, onDone }) {
             footer={<><Button variant="ghost" onClick={onClose}>Cerrar</Button><Button icon={ListPlus} loading={busy} onClick={submit} disabled={!form.names.trim()}>Crear trámites</Button></>}>
             <div className="space-y-4">
                 <Field label="Nombres de los trámites"><Textarea rows={8} value={form.names} onChange={(e) => setForm({ ...form, names: e.target.value })} placeholder={'CONSTANCIA DE PRÁCTICAS\nCERTIFICADO DE IDIOMAS\n…'} /></Field>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Field label="¿Para qué carrera?" hint="Vacío = trámite general para todas.">
                         <Select value={form.program_id} onChange={(e) => setForm({ ...form, program_id: e.target.value })}>
                             <option value="">Todas las carreras (general)</option>

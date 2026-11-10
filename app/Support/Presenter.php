@@ -39,6 +39,7 @@ class Presenter
             $data['counts'] = [
                 'tasks' => $u->isStudent() ? 0 : $wf->tasksQuery($u)->count(),
                 'observed' => $u->isStudent() ? Submission::where('student_id', $u->id)->where('status', 'OBSERVADO')->count() : 0,
+                'payments' => $u->isStudent() ? \App\Models\Payment::where('user_id', $u->id)->where('status', 'PENDIENTE')->count() : 0,
                 'notifications' => UserNotification::where('user_id', $u->id)->whereNull('read_at')->count(),
             ];
         }
@@ -49,7 +50,7 @@ class Presenter
     /** Resumen para listas y bandejas. */
     public static function submissionRow(Submission $s, ?User $viewer = null): array
     {
-        $s->loadMissing(['student:id,name,student_code,email', 'program:id,code,name', 'faculty:id,code,name', 'procedure.steps', 'channel:id,name']);
+        $s->loadMissing(['student:id,name,student_code,email', 'program:id,code,name', 'faculty:id,code,name', 'procedure.steps', 'channel:id,name', 'payments']);
         $wf = app(WorkflowService::class);
         $step = $wf->currentStep($s);
         $total = $s->procedure?->steps->count() ?? 0;
@@ -78,7 +79,7 @@ class Presenter
             'progress' => $total ? ($s->status === 'FINALIZADO' ? 100 : (int) round(($s->current_step_index / $total) * 100)) : 0,
             'total_steps' => $total,
             'observation' => $s->observation,
-            'final_document_code' => $s->final_document_code,
+            'ticket' => ($t = $s->payments->sortByDesc('id')->first()) ? $t->only(['id', 'code', 'status', 'amount']) : null,
             'created_at' => $s->created_at?->toIso8601String(),
             'updated_at' => $s->updated_at?->toIso8601String(),
             'finished_at' => $s->finished_at?->toIso8601String(),
@@ -103,6 +104,7 @@ class Presenter
         $row['steps'] = $steps->map(function (ProcedureStep $st, $i) use ($s, $wf) {
             $state = match (true) {
                 $s->status === 'FINALIZADO' => 'done',
+                $s->status === 'PENDIENTE_PAGO' => $i === 0 ? 'done' : 'pending',
                 $i < $s->current_step_index => 'done',
                 $i === $s->current_step_index && $s->status === 'OBSERVADO' => 'observed',
                 $i === $s->current_step_index && $s->status === 'RECHAZADO' => 'rejected',
@@ -117,8 +119,6 @@ class Presenter
                 'area' => $st->area,
                 'area_label' => $wf->areaLabel($st->area, $s),
                 'action_required' => $st->action_required,
-                'document_requirement' => $st->document_requirement,
-                'document_label' => ProcedureStep::DOCUMENTS[$st->document_requirement] ?? null,
                 'can_observe' => $st->can_observe,
                 'can_reject' => $st->can_reject,
                 'state' => $state,
@@ -151,14 +151,13 @@ class Presenter
 
         $current = $wf->currentStep($s);
         $canAct = $wf->canAct($viewer, $s);
+        $isLast = $current && $s->current_step_index >= $steps->count() - 1;
         $row['permissions'] = [
             'can_act' => $canAct,
             'can_observe' => $canAct && ($current?->can_observe || $viewer->isAdmin()),
             'can_reject' => $canAct && ($current?->can_reject || $viewer->isAdmin()),
             'can_correct' => $s->status === 'OBSERVADO' && $s->student_id === $viewer->id,
-            'needs_document' => $canAct && (bool) $current?->document_requirement,
-            'document_label' => $current ? (ProcedureStep::DOCUMENTS[$current->document_requirement] ?? null) : null,
-            'suggested_number' => $canAct && $current?->document_requirement ? $wf->suggestOfficialNumber($s, $current) : null,
+            'is_last_step' => $canAct && $isLast,          // debe subir el documento final
             'is_payment_step' => $canAct && $current?->action_required === 'VERIFICAR_PAGO',
         ];
 

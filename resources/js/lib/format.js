@@ -1,4 +1,5 @@
 export const STATUS = {
+    PENDIENTE_PAGO: { label: 'Pendiente de pago', tone: 'gold' },
     EN_PROCESO: { label: 'En proceso', tone: 'blue' },
     OBSERVADO: { label: 'Observado', tone: 'amber' },
     FINALIZADO: { label: 'Finalizado', tone: 'teal' },
@@ -7,28 +8,25 @@ export const STATUS = {
 
 export const ACTION_LABELS = {
     CREACION: 'Solicitud registrada',
+    PAGO_REALIZADO: 'Pago realizado en línea',
     PAGO_REGISTRADO: 'Pago registrado',
     PAGO_VALIDADO: 'Pago validado',
-    APROBADO: 'Etapa aprobada',
+    APROBADO: 'Aprobado',
     OFICIO_ADJUNTADO: 'Oficio emitido',
     RESOLUCION_EMITIDA: 'Resolución emitida',
     CONSTANCIA_EMITIDA: 'Constancia emitida',
     OBSERVADO: 'Observación',
-    SUBSANADO: 'Observación subsanada',
+    SUBSANADO: 'Observación corregida',
     RECHAZADO: 'Solicitud denegada',
     FINALIZADO: 'Trámite finalizado',
 };
 
 export const DOC_TYPES = {
     REQUISITO: 'Requisito',
+    DOCUMENTO: 'Documento del área',
+    DOCUMENTO_FINAL: 'Documento final',
+    SUBSANACION: 'Corrección',
     COMPROBANTE_PAGO: 'Comprobante de pago',
-    OFICIO: 'Oficio',
-    RESOLUCION: 'Resolución',
-    CONSTANCIA: 'Constancia',
-    INFORME: 'Informe',
-    CONSTANCIA_FINAL: 'Documento final',
-    SUBSANACION: 'Subsanación',
-    ANEXO: 'Anexo',
 };
 
 const dateFmt = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });

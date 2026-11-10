@@ -48,7 +48,7 @@ export default function Login() {
     };
 
     return (
-        <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+        <div className="grid grid-cols-1 min-h-screen lg:grid-cols-[1.05fr_1fr]">
             {/* Panel institucional */}
             <div className="relative hidden overflow-hidden bg-navy-udh lg:flex lg:flex-col lg:justify-between lg:p-14">
                 <div className="absolute inset-0 opacity-[0.14]" style={{ background: 'linear-gradient(135deg, transparent 0 58%, #2eb8a0 58% 100%)' }} />

@@ -33,7 +33,8 @@ class ReportController extends Controller
                     ->whereHas('programs', fn ($q) => $q->whereKey($p->id))
                     ->has('programs', '=', 1)->count();
                 $fake = new User(['program_id' => $p->id, 'faculty_id' => $p->faculty_id]);
-                $revenue = (float) Submission::where('program_id', $p->id)->where('payment_status', 'VERIFICADO')->sum('cost');
+                $revenue = (float) \App\Models\Payment::where('status', 'PAGADO')
+                    ->whereHas('submission', fn ($q) => $q->where('program_id', $p->id))->sum('amount');
 
                 return [
                     'id' => $p->id,

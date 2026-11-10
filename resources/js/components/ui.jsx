@@ -42,7 +42,7 @@ export function IconButton({ icon: Icon, label, className, tone = 'default', ...
 /* ---------- Contenedores ---------- */
 export function Card({ className, children, ...props }) {
     return (
-        <div className={cx('rounded-2xl border border-line bg-surface', className)} {...props}>
+        <div className={cx('min-w-0 rounded-2xl border border-line bg-surface', className)} {...props}>
             {children}
         </div>
     );
@@ -50,13 +50,13 @@ export function Card({ className, children, ...props }) {
 
 export function PageHeader({ kicker, title, description, actions }) {
     return (
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div className="min-w-0">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0 flex-1">
                 {kicker && <p className="kicker mb-2">{kicker}</p>}
-                <h1 className="text-2xl font-extrabold tracking-tight text-ink md:text-[2rem]">{title}</h1>
-                {description && <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-muted">{description}</p>}
+                <h1 className="text-[1.6rem] leading-tight font-extrabold tracking-tight text-ink md:text-[2rem]">{title}</h1>
+                {description && <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted md:text-[15px]">{description}</p>}
             </div>
-            {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
+            {actions && <div className="flex flex-wrap gap-2 lg:shrink-0">{actions}</div>}
         </div>
     );
 }
@@ -255,7 +255,7 @@ export function Pagination({ meta, onPage }) {
     );
 }
 
-export function Tabs({ tabs, value, onChange }) {
+export function Tabs({ tabs, value, onChange, fill }) {
     return (
         <div className="scrollbar-thin mb-5 flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1">
             {tabs.map((t) => (
@@ -263,11 +263,12 @@ export function Tabs({ tabs, value, onChange }) {
                     key={t.value}
                     onClick={() => onChange(t.value)}
                     className={cx(
-                        'flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition',
+                        'flex shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition sm:px-3.5',
+                        fill && 'flex-1 shrink',
                         value === t.value ? 'bg-navy-udh text-white dark:bg-teal-udh' : 'text-muted hover:text-ink',
                     )}
                 >
-                    {t.icon && <t.icon className="size-4" />}
+                    {t.icon && <t.icon className={cx('size-4', fill && 'hidden sm:block')} />}
                     {t.label}
                     {t.count !== undefined && <span className={cx('rounded-full px-1.5 text-[11px]', value === t.value ? 'bg-white/20' : 'bg-surface-2')}>{t.count}</span>}
                 </button>
@@ -286,15 +287,15 @@ export function StatCard({ label, value, icon: Icon, tone = 'teal', hint }) {
         navy: 'bg-navy-udh/10 text-navy-udh dark:bg-white/10 dark:text-white',
     };
     return (
-        <Card className="p-5">
-            <div className="flex items-start justify-between gap-3">
+        <Card className="min-w-0 p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                    <p className="text-xs font-bold tracking-wider text-muted uppercase">{label}</p>
-                    <p className={cx('mt-2 font-extrabold tracking-tight whitespace-nowrap text-ink', String(value).length > 9 ? 'text-2xl' : 'text-3xl')}>{value}</p>
+                    <p className="text-[11px] font-bold tracking-wider text-muted uppercase sm:text-xs">{label}</p>
+                    <p className={cx('mt-1.5 font-extrabold tracking-tight break-words text-ink sm:mt-2', String(value).length > 9 ? 'text-lg sm:text-2xl' : 'text-2xl sm:text-3xl')}>{value}</p>
                     {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
                 </div>
                 {Icon && (
-                    <div className={cx('grid size-11 shrink-0 place-items-center rounded-xl', tones[tone])}>
+                    <div className={cx('hidden size-11 shrink-0 place-items-center rounded-xl sm:grid', tones[tone])}>
                         <Icon className="size-5" />
                     </div>
                 )}

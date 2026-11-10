@@ -8,6 +8,7 @@ class ProcedureStep extends Model
 {
     public const ACTIONS = [
         'SOLICITUD' => 'Presentación de solicitud',
+        'APROBAR' => 'Revisar y aprobar',
         'VERIFICAR_PAGO' => 'Verificar pago',
         'REVISAR_REQUISITOS' => 'Revisar requisitos',
         'ELABORAR_OFICIO' => 'Elaborar oficio',

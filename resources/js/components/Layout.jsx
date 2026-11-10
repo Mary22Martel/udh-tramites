@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-    BarChart3, Bell, BookOpen, Building2, ChevronDown, ChevronLeft, ClipboardCheck, FileStack, FolderKanban,
-    History, Inbox, LayoutDashboard, LogOut, Menu, Moon, PlusCircle, QrCode, Sun, Upload, UserCircle2, Users, X,
+    BarChart3, Bell, BookOpen, Wallet, Landmark, Building2, ChevronDown, ChevronLeft, ClipboardCheck, FileStack, FolderKanban,
+    History, Inbox, LayoutDashboard, LogOut, Menu, Moon, PlusCircle, Sun, Upload, UserCircle2, Users, X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -19,13 +19,13 @@ function navFor(user) {
             ] },
             { section: 'Gestión', items: [
                 { to: '/admin/solicitudes', label: 'Solicitudes', icon: FileStack },
+                { to: '/pagos', label: 'Pagos', icon: Landmark },
                 { to: '/bandeja', label: 'Bandeja general', icon: Inbox, badge: c.tasks },
                 { to: '/admin/tramites', label: 'Trámites (TUPA)', icon: FolderKanban },
                 { to: '/admin/organizacion', label: 'Organización', icon: Building2 },
                 { to: '/admin/usuarios', label: 'Personal y estudiantes', icon: Users },
                 { to: '/admin/carga', label: 'Carga de datos', icon: Upload },
             ] },
-            { section: 'Utilidades', items: [{ to: '/verificar', label: 'Verificar documento', icon: QrCode }] },
         ];
     }
     if (user.role === 'ESTUDIANTE') {
@@ -34,19 +34,19 @@ function navFor(user) {
                 { to: '/inicio', label: 'Inicio', icon: LayoutDashboard },
                 { to: '/catalogo', label: 'Catálogo de trámites', icon: BookOpen },
                 { to: '/mis-tramites', label: 'Mis trámites', icon: FileStack, badge: c.observed, badgeTone: 'amber' },
+                { to: '/mis-pagos', label: 'Mis pagos', icon: Wallet, badge: c.payments, badgeTone: 'red' },
             ] },
-            { section: 'Utilidades', items: [{ to: '/verificar', label: 'Verificar documento', icon: QrCode }] },
         ];
     }
     return [
         { section: 'Principal', items: [
+            ...(user.role === 'TESORERIA' ? [{ to: '/pagos', label: 'Pagos recibidos', icon: Landmark }] : []),
             { to: '/panel', label: 'Mi panel', icon: LayoutDashboard },
             { to: '/bandeja', label: 'Bandeja de tareas', icon: Inbox, badge: c.tasks },
             { to: '/atendidos', label: 'Historial atendido', icon: History },
         ] },
         { section: 'Consulta', items: [
             { to: '/catalogo', label: 'Catálogo de trámites', icon: BookOpen },
-            { to: '/verificar', label: 'Verificar documento', icon: QrCode },
         ] },
     ];
 }
@@ -124,7 +124,7 @@ function Sidebar({ user, collapsed, onCollapse, mobileOpen, onCloseMobile }) {
                                         {!!it.badge && (
                                             <span className={cx('grid min-w-6 place-items-center rounded-full px-1.5 text-[11px] font-bold',
                                                 collapsed && 'lg:absolute lg:ml-6 lg:-mt-6',
-                                                it.badgeTone === 'amber' ? 'bg-amber-500 text-white' : 'bg-gold-udh text-navy-udh')}>
+                                                it.badgeTone === 'amber' ? 'bg-amber-500 text-white' : it.badgeTone === 'red' ? 'bg-red-500 text-white' : 'bg-gold-udh text-navy-udh')}>
                                                 {it.badge}
                                             </span>
                                         )}
@@ -168,14 +168,15 @@ function NotificationsMenu({ count, onChange }) {
         if (!n.read_at) await api.post(`/notifications/${n.id}/read`);
         setOpen(false);
         onChange();
-        if (n.submission_id) navigate(`${user.role === 'ESTUDIANTE' ? '/mis-tramites' : '/bandeja'}?ver=${n.submission_id}`);
+        if (n.type === 'PAYMENT') navigate('/mis-pagos');
+        else if (n.submission_id) navigate(`${user.role === 'ESTUDIANTE' ? '/mis-tramites' : '/bandeja'}?ver=${n.submission_id}`);
     };
     const readAll = async () => {
         await api.post('/notifications/read-all');
         setItems((xs) => xs.map((x) => ({ ...x, read_at: x.read_at || new Date().toISOString() })));
         onChange();
     };
-    const dot = { INFO: 'bg-sky-500', SUCCESS: 'bg-teal-udh', WARNING: 'bg-amber-500', ALERT: 'bg-red-500' };
+    const dot = { INFO: 'bg-sky-500', SUCCESS: 'bg-teal-udh', WARNING: 'bg-amber-500', ALERT: 'bg-red-500', PAYMENT: 'bg-gold-udh' };
 
     return (
         <div className="relative" ref={ref}>

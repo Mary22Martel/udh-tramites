@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Area;
+use App\Models\Payment;
 use App\Models\Procedure;
 use App\Models\ProcedureStep;
 use App\Models\Submission;
@@ -43,8 +44,8 @@ class WorkflowService
         return match ($area) {
             null, '' => 'Sistema',
             'ESTUDIANTE' => 'Estudiante',
-            'PROGRAMA_ACADEMICO' => $s?->program ? 'Programa de '.$s->program->name : 'Programa Académico del estudiante',
-            'FACULTAD' => $s?->faculty ? 'Decanato - '.$s->faculty->name : 'Decanato de la Facultad del estudiante',
+            'PROGRAMA_ACADEMICO' => $s?->program ? 'Programa de '.$s->program->name : 'Programa académico',
+            'FACULTAD' => $s?->faculty?->name ?? 'Facultad',
             'SISTEMA' => 'Sistema de Trámites UDH',
             default => $this->areas()->get($area)?->name ?? $area,
         };
@@ -155,6 +156,12 @@ class WorkflowService
         return $q;
     }
 
+    /** Personal de Tesorería: ve todos los pagos y el detalle de sus solicitudes. */
+    public static function isTreasury(User $user): bool
+    {
+        return $user->role === 'TESORERIA' || $user->area?->code === 'TESORERIA';
+    }
+
     public function canAct(User $user, Submission $s): bool
     {
         return $s->status === 'EN_PROCESO' && $this->tasksQuery($user)->whereKey($s->id)->exists();
@@ -162,7 +169,7 @@ class WorkflowService
 
     public function canView(User $user, Submission $s): bool
     {
-        if ($user->isAdmin() || $s->student_id === $user->id) {
+        if ($user->isAdmin() || $s->student_id === $user->id || self::isTreasury($user)) {
             return true;
         }
         if ($this->canAct($user, $s)) {
@@ -179,19 +186,14 @@ class WorkflowService
 
     /**
      * El estudiante inicia un trámite.
+     * - Sin costo: entra de inmediato al flujo (paso 2).
+     * - Con costo: queda "Pendiente de pago" y se genera un ticket en "Mis pagos".
+     *   Al pagarse (markPaid) recién entra al flujo.
      *
      * @param  array<int, UploadedFile|array{name:string,size?:int}>  $requirementFiles  indexados por id de requisito
-     * @param  array{method:string,operation:string,date?:string}|null  $payment
      */
-    public function start(
-        Procedure $procedure,
-        User $student,
-        string $description,
-        array $requirementFiles = [],
-        ?array $payment = null,
-        UploadedFile|array|null $voucher = null,
-        ?\App\Models\Payment $onlinePayment = null,
-    ): Submission {
+    public function start(Procedure $procedure, User $student, string $description, array $requirementFiles = []): Submission
+    {
         $procedure->loadMissing(['steps', 'requirements']);
 
         if ($procedure->steps->isEmpty()) {
@@ -204,16 +206,9 @@ class WorkflowService
             }
         }
 
-        if ($onlinePayment) {
-            // Pago hecho en la pasarela: ya viene confirmado
-            $payment = ['method' => $onlinePayment->method, 'operation' => $onlinePayment->transaction_code, 'date' => $onlinePayment->paid_at?->toDateString()];
-        }
+        $needsPay = $procedure->requires_payment && $procedure->cost > 0;
 
-        if ($procedure->requires_payment && (empty($payment['method']) || empty($payment['operation']))) {
-            throw ValidationException::withMessages(['payment' => 'Debe registrar el método y número de operación del pago.']);
-        }
-
-        return DB::transaction(function () use ($procedure, $student, $description, $requirementFiles, $payment, $voucher, $onlinePayment) {
+        return DB::transaction(function () use ($procedure, $student, $description, $requirementFiles, $needsPay) {
             $first = $procedure->steps->first();
 
             $s = new Submission([
@@ -227,13 +222,9 @@ class WorkflowService
                 'faculty_id' => $student->faculty_id,
                 'program_id' => $student->program_id,
                 'description' => $description,
-                'status' => 'EN_PROCESO',
+                'status' => $needsPay ? 'PENDIENTE_PAGO' : 'EN_PROCESO',
                 'current_step_index' => 0,
-                'payment_status' => $procedure->requires_payment ? 'PENDIENTE' : 'NO_REQUIERE',
-                'payment_method' => $payment['method'] ?? null,
-                'payment_operation' => $payment['operation'] ?? null,
-                'payment_amount' => $payment ? $procedure->cost : null,
-                'payment_date' => $payment ? ($payment['date'] ?? now()->toDateString()) : null,
+                'payment_status' => $needsPay ? 'PENDIENTE' : 'NO_REQUIERE',
             ]);
             $s->save();
             $s->setRelation('procedure', $procedure);
@@ -244,94 +235,147 @@ class WorkflowService
                     $this->attach($s, $requirementFiles[$req->id], 'REQUISITO', $student, $isPhoto ? 'FOTO_CARNET' : 'DOCUMENTO_ACADEMICO', label: $req->name);
                 }
             }
-            if ($voucher) {
-                $this->attach($s, $voucher, 'COMPROBANTE_PAGO', $student, 'COMPROBANTE_PAGO', label: 'Comprobante de pago');
-            }
 
             $this->log($s, $first, $student, 'Estudiante', 'CREACION', "Solicitud registrada. Justificación: \"{$description}\"");
-            if ($payment && ! $onlinePayment) {
-                $this->log($s, $first, $student, 'Estudiante', 'PAGO_REGISTRADO',
-                    sprintf('Pago registrado vía %s con N° de operación %s por S/ %s.', $payment['method'], $payment['operation'], number_format($procedure->cost, 2)));
+
+            if ($needsPay) {
+                $ticket = Payment::create([
+                    'code' => Payment::nextCode(),
+                    'submission_id' => $s->id,
+                    'user_id' => $student->id,
+                    'procedure_id' => $procedure->id,
+                    'concept' => $procedure->payment_concept ?: "Derecho de trámite: {$procedure->name}",
+                    'amount' => $procedure->cost,
+                    'status' => 'PENDIENTE',
+                ]);
+                $s->save();
+                $this->notify($student->id, 'Tienes un pago pendiente',
+                    sprintf('Se generó el ticket %s por S/ %s para tu trámite %s. Págalo en "Mis pagos" para que empiece a atenderse.', $ticket->code, number_format($ticket->amount, 2), $s->code),
+                    'PAYMENT', $s->id);
+
+                return $s->fresh();
             }
 
-            // El paso 1 (solicitud del estudiante) queda cumplido: avanza al paso 2
-            $s->current_step_index = $procedure->steps->count() > 1 ? 1 : 0;
+            $this->enterWorkflow($s, $student);
+            $s->save();
 
-            if ($onlinePayment) {
-                // Pago confirmado por la pasarela. Igual pasa por Tesorería, que lo valida en su bandeja.
-                $onlinePayment->update(['submission_id' => $s->id]);
-                $label = \App\Models\Payment::METHODS[$onlinePayment->method] ?? $onlinePayment->method;
-                $this->log($s, $first, $student, 'Estudiante', 'PAGO_REGISTRADO', sprintf(
-                    'Pago en línea realizado: %s %s, S/ %s, código de transacción %s. Pendiente de validación por Tesorería.',
-                    $label, $onlinePayment->reference, number_format($onlinePayment->amount, 2), $onlinePayment->transaction_code));
+            return $s->fresh();
+        });
+    }
+
+    /**
+     * Confirma el pago de un ticket (lo llama la pasarela o el simulador) y hace avanzar la solicitud.
+     * Es idempotente: si el ticket ya estaba pagado no hace nada.
+     */
+    public function markPaid(Payment $payment, string $method, ?string $reference, string $transactionCode, string $gateway, ?string $gatewayChargeId = null): Submission
+    {
+        return DB::transaction(function () use ($payment, $method, $reference, $transactionCode, $gateway, $gatewayChargeId) {
+            $payment = Payment::lockForUpdate()->find($payment->id);
+            $s = $payment->submission()->with('procedure.steps')->first();
+            if ($payment->status === 'PAGADO') {
+                return $s;
             }
 
-            if ($s->current_step_index >= $procedure->steps->count()) {
-                $this->finish($s, $student, $procedure->steps->count());
-            } else {
-                $this->resolveAssignment($s);
+            $payment->update([
+                'status' => 'PAGADO',
+                'method' => $method,
+                'reference' => $reference,
+                'transaction_code' => $transactionCode,
+                'gateway' => $gateway,
+                'gateway_charge_id' => $gatewayChargeId,
+                'failure_reason' => null,
+                'paid_at' => now(),
+            ]);
+
+            $s->fill([
+                'payment_status' => 'PAGADO',
+                'payment_method' => $method,
+                'payment_operation' => $transactionCode,
+                'payment_amount' => $payment->amount,
+                'payment_date' => now()->toDateString(),
+            ]);
+
+            $label = Payment::METHODS[$method] ?? $method;
+            $first = $s->procedure?->steps->first();
+            $s->events()->create([
+                'step_number' => $first?->step_number ?? 1,
+                'step_name' => 'Pago del derecho de trámite',
+                'actor_id' => $payment->user_id,
+                'actor_name' => $gateway === 'CULQI' ? 'Pasarela Culqi' : 'Pasarela de pagos (prueba)',
+                'actor_role' => 'SISTEMA',
+                'actor_area' => 'Pago en línea',
+                'action' => 'PAGO_REALIZADO',
+                'comment' => sprintf('Pago confirmado: %s %s, S/ %s. Ticket %s, transacción %s.', $label, $reference, number_format($payment->amount, 2), $payment->code, $transactionCode),
+            ]);
+
+            if ($s->status === 'PENDIENTE_PAGO') {
+                $s->status = 'EN_PROCESO';
+                $this->enterWorkflow($s, $payment->user);
             }
             $s->save();
 
             $next = $this->currentStep($s);
-            $this->notify($student->id, 'Solicitud enviada con éxito',
-                "Tu solicitud {$s->code} ({$procedure->name}) fue recibida y está en: ".($next?->name ?? 'revisión').'.', 'INFO', $s->id);
+            $this->notify($payment->user_id, 'Pago confirmado',
+                "Recibimos tu pago de S/ ".number_format($payment->amount, 2)." (ticket {$payment->code}). Tu trámite {$s->code} ya está en proceso".($next ? ": {$next->name}." : '.'),
+                'SUCCESS', $s->id);
 
             return $s->fresh();
         });
     }
 
-    /** El área responsable aprueba su paso y la solicitud pasa al siguiente. */
-    public function approve(
-        Submission $s,
-        User $actor,
-        ?string $comment = null,
-        UploadedFile|array|null $file = null,
-        ?string $officialNumber = null,
-    ): Submission {
+    /** Pasa la solicitud del paso 1 (estudiante) al primer área responsable. */
+    protected function enterWorkflow(Submission $s, User $student): void
+    {
+        $steps = $s->procedure->steps;
+        $s->current_step_index = $steps->count() > 1 ? 1 : 0;
+
+        if ($steps->count() <= 1) {
+            $this->finish($s, $student, $steps->count());
+
+            return;
+        }
+        $this->resolveAssignment($s);
+
+        $next = $this->currentStep($s);
+        $this->notify($student->id, 'Solicitud en proceso',
+            "Tu solicitud {$s->code} ({$s->procedure_name}) está en: ".($next?->name ?? 'revisión').' ('.$this->areaLabel($next?->area, $s).').', 'INFO', $s->id);
+    }
+
+    /**
+     * El área responsable aprueba su paso y la solicitud pasa al siguiente.
+     *  - Pasos intermedios: el archivo es opcional (si se adjunta, el estudiante lo ve).
+     *  - Último paso: debe adjuntar el documento que se entrega al estudiante.
+     */
+    public function approve(Submission $s, User $actor, ?string $comment = null, UploadedFile|array|null $file = null): Submission
+    {
         $this->guardActionable($s, $actor);
         $s->loadMissing(['procedure.steps', 'program', 'faculty']);
         $step = $this->currentStep($s);
         $steps = $s->procedure->steps->values();
+        $isLast = $s->current_step_index >= $steps->count() - 1;
         $areaLabel = $this->areaLabel($step->area, $s);
 
-        return DB::transaction(function () use ($s, $actor, $comment, $file, $officialNumber, $step, $steps, $areaLabel) {
-            $docType = $this->documentTypeFor($step->document_requirement);
-            $docName = null;
+        if ($isLast && ! $file) {
+            throw ValidationException::withMessages(['file' => 'Es el último paso: adjunta el documento que se entregará al estudiante.']);
+        }
 
-            if ($docType) {
-                $officialNumber = $officialNumber ?: $this->suggestOfficialNumber($s, $step);
-                $label = (ProcedureStep::DOCUMENTS[$step->document_requirement] ?? 'Documento').' '.$officialNumber;
-                $doc = $this->attach($s, $file ?? ['name' => Str::slug($label, '_').'.pdf', 'size' => 380_000], $docType, $actor, $docType, $officialNumber, $label);
-                $docName = $doc->name;
-            } elseif ($file) {
-                $docName = $this->attach($s, $file, 'ANEXO', $actor, 'DOCUMENTO_ACADEMICO')->name;
-            }
+        return DB::transaction(function () use ($s, $actor, $comment, $file, $step, $steps, $isLast, $areaLabel) {
+            $docName = $file ? $this->attach($s, $file, $isLast ? 'DOCUMENTO_FINAL' : 'DOCUMENTO', $actor, $areaLabel)->name : null;
 
-            $action = match (true) {
-                $step->action_required === 'VERIFICAR_PAGO' => 'PAGO_VALIDADO',
-                $docType === 'OFICIO' => 'OFICIO_ADJUNTADO',
-                $docType === 'RESOLUCION' => 'RESOLUCION_EMITIDA',
-                $docType === 'CONSTANCIA' => 'CONSTANCIA_EMITIDA',
-                default => 'APROBADO',
-            };
+            $action = $step->action_required === 'VERIFICAR_PAGO' ? 'PAGO_VALIDADO' : 'APROBADO';
             if ($action === 'PAGO_VALIDADO') {
                 $s->payment_status = 'VERIFICADO';
             }
+            $this->log($s, $step, $actor, $areaLabel, $action, $comment ?: "Aprobado por {$areaLabel}.", $docName);
 
-            $this->log($s, $step, $actor, $areaLabel, $action,
-                $comment ?: "Etapa \"{$step->name}\" aprobada por {$actor->name}.", $docName);
-
-            $nextIndex = $s->current_step_index + 1;
-
-            if ($nextIndex >= $steps->count()) {
-                $this->finish($s, $actor, $steps->count());
+            if ($isLast) {
+                $this->finish($s, $actor, $steps->count(), $docName);
             } else {
-                $s->current_step_index = $nextIndex;
+                $s->current_step_index++;
                 $this->resolveAssignment($s);
-                $next = $steps->get($nextIndex);
+                $next = $steps->get($s->current_step_index);
                 $this->notify($s->student_id, 'Avance de tu trámite',
-                    "Tu trámite {$s->code} avanzó a la etapa: {$next->name} (".$this->areaLabel($next->area, $s).').', 'INFO', $s->id);
+                    "Tu trámite {$s->code} pasó a ".$this->areaLabel($next->area, $s).'.'.($docName ? ' Se adjuntó un documento.' : ''), 'INFO', $s->id);
             }
 
             $s->save();
@@ -340,25 +384,18 @@ class WorkflowService
         });
     }
 
-    protected function finish(Submission $s, User $actor, int $stepCount): void
+    protected function finish(Submission $s, User $actor, int $stepCount, ?string $docName = null): void
     {
         $s->status = 'FINALIZADO';
         $s->current_area = null;
         $s->channel_id = null;
         $s->finished_at = now();
-        do {
-            $code = 'DOC-UDH-'.now()->year.'-'.strtoupper(Str::random(6));
-        } while (Submission::where('final_document_code', $code)->exists());
-        $s->final_document_code = $code;
-
-        $this->attach($s, ['name' => Str::slug($s->procedure_name, '_').'_'.$s->code.'.pdf', 'size' => 495_000],
-            'CONSTANCIA_FINAL', $actor, 'CONSTANCIA_FINAL', $code, 'Documento final');
 
         SubmissionEventLogger::system($s, $stepCount, 'FINALIZADO',
-            "Trámite culminado con éxito. Se generó el documento oficial {$code} con código de verificación QR.");
+            $docName ? "Trámite finalizado. Documento entregado: {$docName}." : 'Trámite finalizado.');
 
-        $this->notify($s->student_id, '¡Trámite culminado!',
-            "Tu trámite {$s->code} ({$s->procedure_name}) finalizó. Ya puedes descargar tu documento oficial.", 'SUCCESS', $s->id);
+        $this->notify($s->student_id, '¡Trámite finalizado!',
+            "Tu trámite {$s->code} ({$s->procedure_name}) finalizó.".($docName ? ' Ya puedes descargar tu documento.' : ''), 'SUCCESS', $s->id);
     }
 
     /** El área observa la solicitud: vuelve al estudiante para que subsane. */
@@ -445,31 +482,6 @@ class WorkflowService
         if (! $this->canAct($actor, $s)) {
             throw ValidationException::withMessages(['action' => 'No tienes permiso para atender esta solicitud en su etapa actual.']);
         }
-    }
-
-    public function documentTypeFor(?string $requirement): ?string
-    {
-        return match ($requirement) {
-            'OFICIO_PA' => 'OFICIO',
-            'RESOLUCION_DECANAL' => 'RESOLUCION',
-            'CONSTANCIA_OFICIAL' => 'CONSTANCIA',
-            'INFORME_TECNICO' => 'INFORME',
-            default => null,
-        };
-    }
-
-    public function suggestOfficialNumber(Submission $s, ProcedureStep $step): string
-    {
-        $s->loadMissing(['program', 'faculty']);
-        $n = str_pad((string) random_int(1, 999), 3, '0', STR_PAD_LEFT);
-        $year = now()->year;
-
-        return match ($step->document_requirement) {
-            'OFICIO_PA' => "OFICIO N° {$n}-{$year}-PA-".($s->program?->code ?? 'UDH').'-UDH',
-            'RESOLUCION_DECANAL' => "RESOLUCIÓN N° {$n}-{$year}-D-".($s->faculty?->code ?? 'FAC').'-UDH',
-            'CONSTANCIA_OFICIAL' => "CONSTANCIA N° {$n}-{$year}-DMR-UDH",
-            default => "INFORME N° {$n}-{$year}-UDH",
-        };
     }
 
     /** Adjunta un archivo real (UploadedFile) o un documento generado por el sistema (array con name/size). */

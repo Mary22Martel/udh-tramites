@@ -1,7 +1,7 @@
 [
   {
     "code": "TESORERIA",
-    "name": "Oficina de Tesorería",
+    "name": "Tesorería",
     "description": "Validación de pagos bancarios, emisión de comprobantes y cobranza de aranceles universitarios.",
     "is_system": true,
     "has_channels": false,
@@ -9,7 +9,7 @@
   },
   {
     "code": "MATRICULA",
-    "name": "Dirección de Matrícula y Registros",
+    "name": "Matrícula",
     "description": "Gestión de récords académicos, consolidación de notas, convalidaciones y expedición de constancias oficiales.",
     "is_system": true,
     "has_channels": true,
@@ -89,7 +89,7 @@
   },
   {
     "code": "RED-INF",
-    "name": "Red de Informática y Telecomunicaciones",
+    "name": "Red de Informática",
     "description": "Administración de accesos a sistemas institucionales, soporte técnico de red y plataformas virtuales.",
     "is_system": false,
     "has_channels": false,
@@ -97,7 +97,7 @@
   },
   {
     "code": "ADMISION",
-    "name": "Oficina Central de Admisión",
+    "name": "Admisión",
     "description": "Gestión de postulaciones, expedientes de ingreso universitario y validación de prospectos.",
     "is_system": false,
     "has_channels": false,
@@ -105,7 +105,7 @@
   },
   {
     "code": "BIENESTAR",
-    "name": "Oficina de Bienestar Universitario",
+    "name": "Bienestar Universitario",
     "description": "Servicio social, atención médica estudiantil, seguro universitario y becas de comedor.",
     "is_system": false,
     "has_channels": false,

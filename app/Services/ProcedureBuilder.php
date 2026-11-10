@@ -61,16 +61,16 @@ class ProcedureBuilder
 
         $flow = $o['flow'] ?? [];
         if (empty($flow)) {
+            // El pago se hace en línea (Culqi): Tesorería solo entra al flujo si se pide en "flujo"
             $flow = array_values(array_filter([
-                $cost > 0 ? 'TESORERIA' : null,
                 $programIds ? 'PROGRAMA_ACADEMICO' : null,
                 'MATRICULA',
             ]));
         }
 
         $steps = [[
-            'name' => 'Presentación de solicitud y requisitos',
-            'description' => 'El estudiante registra su justificación y adjunta los requisitos.',
+            'name' => 'Solicitud del estudiante',
+            'description' => 'El estudiante registra su solicitud y su justificación.',
             'area' => 'ESTUDIANTE', 'action_required' => 'SOLICITUD', 'can_observe' => false, 'can_reject' => false,
         ]];
         $last = count($flow) - 1;
@@ -96,15 +96,19 @@ class ProcedureBuilder
 
     protected function defaultStep(string $area, bool $isLast, ?Program $program): array
     {
-        return match ($area) {
-            'TESORERIA' => ['name' => 'Validación de pago en Tesorería', 'description' => 'Tesorería verifica el pago del derecho de trámite.', 'area' => 'TESORERIA', 'action_required' => 'VERIFICAR_PAGO'],
-            'PROGRAMA_ACADEMICO' => ['name' => 'Revisión y oficio del Programa Académico', 'description' => 'La dirección del programa revisa los requisitos y emite el oficio.', 'area' => 'PROGRAMA_ACADEMICO', 'action_required' => 'ELABORAR_OFICIO', 'document_requirement' => 'OFICIO_PA'],
-            'FACULTAD' => ['name' => 'Resolución del Decanato', 'description' => 'El decanato evalúa y emite la resolución decanal.', 'area' => 'FACULTAD', 'action_required' => 'EMITIR_RESOLUCION', 'document_requirement' => 'RESOLUCION_DECANAL'],
-            'MATRICULA' => $isLast
-                ? ['name' => 'Emisión final y entrega', 'description' => 'Matrícula emite el documento oficial y lo entrega al estudiante.', 'area' => 'MATRICULA', 'action_required' => 'EMITIR_CONSTANCIA', 'document_requirement' => 'CONSTANCIA_OFICIAL']
-                : ['name' => 'Verificación en Matrícula y Registros', 'description' => 'Matrícula verifica el récord académico del estudiante.', 'area' => 'MATRICULA', 'action_required' => 'REVISAR_REQUISITOS'],
-            default => ['name' => 'Revisión del área', 'description' => 'El área responsable revisa la solicitud.', 'area' => $area, 'action_required' => $isLast ? 'FINALIZAR' : 'REVISAR_REQUISITOS'],
+        $base = match ($area) {
+            'TESORERIA' => ['name' => 'Tesorería', 'description' => 'Tesorería revisa el pago.', 'action_required' => 'VERIFICAR_PAGO'],
+            'PROGRAMA_ACADEMICO' => ['name' => 'Revisión del programa', 'description' => 'El programa académico revisa y aprueba.'],
+            'FACULTAD' => ['name' => 'Aprobación de la facultad', 'description' => 'La facultad revisa y aprueba.'],
+            'MATRICULA' => ['name' => 'Matrícula', 'description' => 'Matrícula revisa y aprueba.'],
+            default => ['name' => 'Revisión del área', 'description' => 'El área responsable revisa y aprueba.'],
         };
+        if ($isLast) {
+            $base['name'] .= ' · entrega del documento';
+            $base['description'] = 'Aprueba y sube el documento final para el estudiante.';
+        }
+
+        return $base + ['area' => $area, 'action_required' => 'APROBAR', 'document_requirement' => null];
     }
 
     /**

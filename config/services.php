@@ -28,6 +28,23 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+    | Pasarela de pagos.
+    | PAYMENT_DRIVER=simulado → pagos de prueba sin conexión (para demos).
+    | PAYMENT_DRIVER=culqi    → Culqi real (con llaves de integración pk_test / sk_test o producción).
+    */
+    'payments' => [
+        'driver' => env('PAYMENT_DRIVER', 'simulado'),
+    ],
+
+    'culqi' => [
+        'public_key' => env('CULQI_PUBLIC_KEY'),
+        'secret_key' => env('CULQI_SECRET_KEY'),
+        'api_url' => env('CULQI_API_URL', 'https://api.culqi.com/v2'),
+        // Billeteras (Plin, etc.), banca móvil y agentes requieren crear una "orden" en Culqi.
+        'orders' => (bool) env('CULQI_ORDERS', true),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

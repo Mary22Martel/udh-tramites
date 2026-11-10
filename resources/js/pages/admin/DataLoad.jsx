@@ -93,19 +93,19 @@ export default function DataLoad() {
                 Orden recomendado: <b>1)</b> Facultades y carreras → <b>2)</b> Personal → <b>3)</b> Estudiantes → <b>4)</b> Trámites por carrera.
             </Callout>
             {!types ? <Spinner /> : (
-                <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {types.filter((t) => t.key !== 'solicitudes_demo').map((t) => <ImportCard key={t.key} type={t} onDone={loadMeta} />)}
                     <ImportCard type={types.find((t) => t.key === 'solicitudes_demo')} onDone={loadMeta} />
                 </div>
             )}
 
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                 <Card className="p-6">
                     <div className="mb-4 flex items-center gap-3">
                         <div className="grid size-11 place-items-center rounded-xl bg-gold-udh/15 text-amber-700 dark:text-gold-udh"><Wand2 className="size-5" /></div>
                         <div><p className="font-extrabold text-ink">Generar solicitudes de demostración</p><p className="text-sm text-muted">Crea solicitudes realistas que recorren el flujo real (pagos, observaciones, resoluciones).</p></div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto] sm:items-end">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px_auto] sm:items-end">
                         <Field label="Carrera">
                             <Select value={gen.program_id} onChange={(e) => setGen({ ...gen, program_id: e.target.value })}>
                                 <option value="">Todas las carreras</option>
