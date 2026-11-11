@@ -42,7 +42,7 @@ export default function Payments() {
                     </div>
                     <div className="scrollbar-thin mb-5 flex gap-2 overflow-x-auto pb-1">
                         {res.by_method.map((m) => (
-                            <span key={m.method} className="shrink-0 rounded-xl bg-surface px-3 py-2 text-sm ring-1 ring-line"><b className="text-ink">{m.label}</b> <span className="text-muted">· {m.n} · {fmtMoney(m.total)}</span></span>
+                            <span key={m.method} className="shrink-0 rounded-xl bg-surface px-3 py-2 text-sm ring-1 ring-line"><b className="text-ink">{m.label}</b> <span className="text-muted">· {m.n} {m.n === 1 ? 'pago' : 'pagos'} · {fmtMoney(m.total)}</span></span>
                         ))}
                     </div>
                 </>

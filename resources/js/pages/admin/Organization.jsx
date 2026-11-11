@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Building2, GraduationCap, Landmark, Pencil, Plus, Store, Trash2, Users } from 'lucide-react';
+import { Building2, CheckCircle2, GraduationCap, Landmark, Mail, MailCheck, MailWarning, Pencil, Plus, Search, Send, Store, Trash2, Users } from 'lucide-react';
 import api, { errorMessage } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -236,13 +236,119 @@ function Areas() {
     );
 }
 
+/** Correo de cada área / facultad / programa: con su contraseña de aplicación los documentos salen desde su cuenta. */
+function MailAccounts() {
+    const toast = useToast();
+    const [res, setRes] = useState(null);
+    const [edit, setEdit] = useState(null);
+    const [form, setForm] = useState({ email: '', password: '' });
+    const [busy, setBusy] = useState('');
+    const [q, setQ] = useState('');
+    const load = () => api.get('/mail-accounts').then(({ data }) => setRes(data));
+    useEffect(() => { load(); }, []);
+    if (!res) return <Spinner />;
+
+    const open = (a) => { setEdit(a); setForm({ email: a.email || '', password: '' }); };
+    const save = async (extra = {}) => {
+        setBusy('save');
+        try {
+            await api.put(`/mail-accounts/${edit.type}/${edit.id}`, { ...form, ...extra });
+            toast.success(extra.disconnect ? 'Correo desconectado.' : 'Correo guardado. Ahora pruébalo.');
+            setEdit(null); load();
+        } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(''); }
+    };
+    const test = async (a) => {
+        setBusy(`test-${a.type}-${a.id}`);
+        try {
+            const { data } = await api.post(`/mail-accounts/${a.type}/${a.id}/test`);
+            toast.success(data.message); load();
+        } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(''); }
+    };
+
+    const term = q.trim().toLowerCase();
+    const list = res.data.filter((a) => !term || `${a.name} ${a.email || ''} ${a.code}`.toLowerCase().includes(term));
+    const groups = ['Áreas', 'Facultades', 'Programas'].map((g) => [g, list.filter((a) => a.group === g)]).filter(([, l]) => l.length);
+    const connected = res.data.filter((a) => a.connected).length;
+
+    return (
+        <>
+            <Callout className="mb-4" title="¿Para qué sirve?">
+                Cuando un área sube un documento, se le envía al estudiante por correo con el archivo adjunto.
+                Si conectas aquí el correo del área con su <b>contraseña de aplicación</b> de Google, el correo sale <b>desde su propia cuenta</b> y lo verá en sus <b>«Enviados»</b> de Gmail.
+                Si no está conectado, sale desde la cuenta general{res.server.general ? <> (<b>{res.server.general}</b>)</> : ''} con el nombre del área.
+            </Callout>
+            {!res.server.ready && (
+                <Callout tone="warning" className="mb-4" title="El envío de correos está apagado">
+                    En el archivo <code>.env</code> falta configurar <code>MAIL_MAILER=smtp</code> y la cuenta general (MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD). Mientras tanto los correos solo se guardan en <code>storage/logs/laravel.log</code>.
+                </Callout>
+            )}
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
+                    <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar área, facultad, programa o correo…" className="pl-9" />
+                </div>
+                <Badge tone={connected ? 'teal' : 'gray'}>{connected} de {res.data.length} conectados</Badge>
+            </div>
+            <div className="space-y-5">
+                {groups.map(([g, l]) => (
+                    <div key={g}>
+                        <p className="mb-2 text-xs font-bold tracking-wider text-muted uppercase">{g}</p>
+                        <Card className="divide-y divide-line overflow-hidden">
+                            {l.map((a) => (
+                                <div key={`${a.type}-${a.id}`} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                                        <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${a.connected ? 'bg-teal-udh/12 text-teal-udh-600 dark:text-teal-300' : 'bg-surface-2 text-muted'}`}>
+                                            {a.connected ? <MailCheck className="size-5" /> : <MailWarning className="size-5" />}
+                                        </span>
+                                        <div className="min-w-0">
+                                            <p className="truncate font-bold text-ink">{a.name}</p>
+                                            <p className="truncate text-sm text-muted">{a.email || 'Sin correo'}{a.parent ? ` · ${a.parent}` : ''}</p>
+                                            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                                                {a.connected
+                                                    ? <Badge tone="teal">Conectado</Badge>
+                                                    : <Badge tone="gray">Usa la cuenta general</Badge>}
+                                                {a.verified_at && <span className="inline-flex items-center gap-1 text-teal-udh-600 dark:text-teal-300"><CheckCircle2 className="size-3.5" /> Probado</span>}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 sm:shrink-0">
+                                        {a.connected && <Button size="sm" variant="secondary" icon={Send} loading={busy === `test-${a.type}-${a.id}`} disabled={!!busy} onClick={() => test(a)}>Probar</Button>}
+                                        <Button size="sm" variant={a.connected ? 'ghost' : 'primary'} icon={a.connected ? Pencil : Mail} onClick={() => open(a)}>{a.connected ? 'Editar' : 'Conectar'}</Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </Card>
+                    </div>
+                ))}
+            </div>
+
+            <Modal open={!!edit} onClose={() => setEdit(null)} size="sm" title={edit ? `Correo de ${edit.name}` : ''} subtitle="Desde esta cuenta se enviarán los documentos a los estudiantes."
+                footer={<>
+                    {edit?.connected && <Button variant="ghost" className="mr-auto text-red-600" disabled={!!busy} onClick={() => save({ disconnect: true })}>Desconectar</Button>}
+                    <Button variant="ghost" onClick={() => setEdit(null)}>Cancelar</Button>
+                    <Button loading={busy === 'save'} onClick={() => save()}>Guardar</Button>
+                </>}>
+                <div className="space-y-4">
+                    <Field label="Correo de la cuenta"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value.trim() })} placeholder="matricula@udh.edu.pe" /></Field>
+                    <Field label="Contraseña de aplicación" hint={edit?.connected ? 'Déjala vacía para mantener la que ya está guardada.' : 'Las 16 letras que da Google en myaccount.google.com/apppasswords (de ESTA cuenta). Se guarda cifrada.'}>
+                        <Input type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={edit?.connected ? '•••• guardada ••••' : 'abcd efgh ijkl mnop'} className="font-mono" />
+                    </Field>
+                    <p className="rounded-xl bg-surface-2 p-3 text-xs leading-relaxed text-muted">
+                        Cómo obtenerla: la persona del área entra a <b>su</b> cuenta de Google → Seguridad → activa la Verificación en 2 pasos → entra a <b>myaccount.google.com/apppasswords</b> → escribe «Tramites UDH» → Crear → copia la clave de 16 letras.
+                    </p>
+                </div>
+            </Modal>
+        </>
+    );
+}
+
 export default function Organization() {
     const [tab, setTab] = useState('facultades');
     return (
         <div>
             <PageHeader kicker="Estructura" title="Organización universitaria" description="Facultades, carreras, áreas administrativas y ventanillas de atención." />
-            <Tabs value={tab} onChange={setTab} tabs={[{ value: 'facultades', label: 'Facultades y carreras', icon: Landmark }, { value: 'areas', label: 'Áreas y ventanillas', icon: Users }]} />
-            {tab === 'facultades' ? <Faculties /> : <Areas />}
+            <Tabs value={tab} onChange={setTab} tabs={[{ value: 'facultades', label: 'Facultades y carreras', icon: Landmark }, { value: 'areas', label: 'Áreas y ventanillas', icon: Users }, { value: 'correos', label: 'Correos', icon: Mail }]} />
+            {tab === 'facultades' ? <Faculties /> : tab === 'areas' ? <Areas /> : <MailAccounts />}
         </div>
     );
 }

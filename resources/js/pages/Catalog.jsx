@@ -87,7 +87,6 @@ export default function Catalog() {
     return (
         <div>
             <PageHeader
-                kicker="Texto Único de Procedimientos Administrativos"
                 title="Catálogo de trámites"
                 description={isStudent ? `Trámites disponibles para ${user.program?.name}.` : 'Consulta los trámites vigentes, sus requisitos, costos y flujo de atención.'}
             />

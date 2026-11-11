@@ -136,7 +136,10 @@ export default function NewSubmission() {
                         <Callout tone="info" title="Revisa antes de enviar">Al enviar, tu solicitud pasará a la primera área responsable. Recibirás notificaciones en cada avance.</Callout>
                         {needsPay && (
                             <Callout tone="warning" title={`Este trámite cuesta ${fmtMoney(proc.cost)}`}>
-                                <span className="flex items-start gap-2"><Receipt className="mt-0.5 size-4 shrink-0" /> Al enviar se generará tu <b>ticket de pago</b> en «Mis pagos». Págalo en línea (tarjeta, Yape…) o en <b>Caja UDH</b> dentro de <b>{proc.days_to_pay || 5} días hábiles</b>; si no, la solicitud se anula.</span>
+                                <span className="flex items-start gap-2">
+                                    <Receipt className="mt-0.5 size-4 shrink-0" />
+                                    <span className="min-w-0">Al enviar se generará tu <b>ticket de pago</b> en «Mis pagos». Págalo en línea (tarjeta, Yape…) o en <b>Caja UDH</b> dentro de <b>{proc.days_to_pay || 5} días hábiles</b>; si no, la solicitud se anula.</span>
+                                </span>
                             </Callout>
                         )}
                         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -165,7 +168,7 @@ export default function NewSubmission() {
                     {current !== 'ok' ? (
                         <Button disabled={!canNext} onClick={() => setStep(step + 1)}>Continuar <ArrowRight className="size-4" /></Button>
                     ) : (
-                        <Button icon={Send} loading={busy} onClick={submit}>{needsPay ? 'Enviar y generar ticket' : 'Enviar solicitud'}</Button>
+                        <Button icon={Send} loading={busy} onClick={submit}>{needsPay ? 'Enviar' : 'Enviar solicitud'}</Button>
                     )}
                 </div>
             </Card>

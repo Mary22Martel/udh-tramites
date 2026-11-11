@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\DocumentoTramiteMail;
+use App\Services\MailAccounts;
 use App\Models\Area;
 use App\Models\Payment;
 use App\Models\Procedure;
@@ -492,7 +493,11 @@ class WorkflowService
         } ?: $actor?->email;
     }
 
-    /** Envía al estudiante el documento que subió un área. Si el correo falla, el trámite sigue igual. */
+    /**
+     * Envía al estudiante el documento que subió un área. Si el correo falla, el trámite sigue igual.
+     *  - Si el área conectó su correo: sale DESDE su cuenta (queda en sus "Enviados").
+     *  - Si no: sale con la cuenta general y el área recibe una copia oculta.
+     */
     public function mailDocument(Submission $s, SubmissionDocument $doc, ?string $area, User $actor, bool $isFinal): void
     {
         $s->loadMissing(['student', 'program', 'faculty']);
@@ -500,13 +505,27 @@ class WorkflowService
         if (! $to) {
             return;
         }
-        $fromEmail = $this->areaEmail($area, $s, $actor);
-        $fromName = $this->areaLabel($area, $s).' · UDH';
+        $accounts = app(MailAccounts::class);
+        $sender = $accounts->senderFor($area, $s);
+        $areaName = $this->areaLabel($area, $s);
+        $areaEmail = $sender?->mailAddress() ?: $actor->email;
+        $own = $sender ? $accounts->mailerFor($sender) : null;
 
         try {
-            Mail::to($to)->send(new DocumentoTramiteMail($s, $doc, $fromName, $fromEmail, $isFinal));
-            SubmissionEventLogger::write($s, $this->currentStep($s)?->step_number ?? 1, 'Envío por correo', $actor, $this->areaLabel($area, $s), 'CORREO_ENVIADO',
-                "Documento «{$doc->name}» enviado al correo {$to}".($fromEmail ? " desde {$fromEmail}" : '').'.');
+            $mail = new DocumentoTramiteMail($s, $doc, $areaName.' · UDH', $areaEmail, $isFinal, ownAccount: (bool) $own);
+            if ($own) {
+                $own->to($to)->send($mail);
+                $how = "desde {$areaEmail} (queda en sus «Enviados»)";
+            } else {
+                $pending = Mail::to($to);
+                if ($areaEmail && config('mail.copy_to_area') && $areaEmail !== config('mail.from.address')) {
+                    $pending->bcc($areaEmail);
+                }
+                $pending->send($mail);
+                $how = 'desde la cuenta general'.($areaEmail ? " (copia a {$areaEmail})" : '');
+            }
+            SubmissionEventLogger::write($s, $this->currentStep($s)?->step_number ?? 1, 'Envío por correo', $actor, $areaName, 'CORREO_ENVIADO',
+                "Documento «{$doc->name}» enviado al correo {$to} {$how}.");
         } catch (\Throwable $e) {
             Log::warning("No se pudo enviar el correo del expediente {$s->code}: ".$e->getMessage());
         }

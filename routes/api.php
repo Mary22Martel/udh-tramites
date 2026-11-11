@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CajaController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ImportController;
+use App\Http\Controllers\Api\MailAccountController;
 use App\Http\Controllers\Api\MetaController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrganizationController;
@@ -97,6 +98,11 @@ Route::middleware(['auth', 'expire.payments'])->group(function () {
         Route::put('/areas/{area}', [OrganizationController::class, 'saveArea']);
         Route::delete('/areas/{area}', [OrganizationController::class, 'deleteArea']);
         Route::put('/areas/{area}/channels', [OrganizationController::class, 'saveChannels']);
+
+        // Correos de áreas, programas y facultades
+        Route::get('/mail-accounts', [MailAccountController::class, 'index']);
+        Route::put('/mail-accounts/{type}/{id}', [MailAccountController::class, 'update']);
+        Route::post('/mail-accounts/{type}/{id}/test', [MailAccountController::class, 'test'])->middleware('throttle:10,1');
 
         Route::get('/staff', [OrganizationController::class, 'staff']);
         Route::get('/students', [OrganizationController::class, 'students']);
