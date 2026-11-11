@@ -19,37 +19,36 @@ class DemoShowcaseSeeder extends Seeder
         $wf = app(WorkflowService::class);
         $demo = app(DemoDataGenerator::class);
         $file = fn ($n) => ['name' => $n, 'size' => 420 * 1024];
-        $pay = fn () => ['method' => 'BCP', 'operation' => (string) random_int(10000000, 99999999)];
 
-        $start = function (string $email, string $code) use ($wf, $file, $pay) {
+        $start = function (string $email, string $name, bool $pay = true) use ($wf, $demo, $file) {
             $student = User::where('email', $email)->first();
-            $proc = Procedure::with(['requirements', 'steps'])->where('name', $code)->first();
+            $proc = Procedure::with(['requirements', 'steps'])->where('name', $name)->first();
             if (! $student || ! $proc) {
                 return null;
             }
-            $files = $proc->requirements->mapWithKeys(fn ($r) => [$r->id => $file(str_replace(' ', '_', $r->name).'.pdf')])->all();
+            $files = $proc->requirements->where('is_required', true)->mapWithKeys(fn ($r) => [$r->id => $file(str_replace(' ', '_', $r->name).'.pdf')])->all();
+            $s = $wf->start($proc, $student, 'Solicito el trámite para continuar con mi proceso académico.', $files, enforceLimits: false);
 
-            return $wf->start($proc, $student, 'Solicito el trámite para continuar con mi proceso académico.', $files,
-                $proc->requires_payment ? $pay() : null, $proc->requires_payment ? $file('Voucher_BCP.pdf') : null);
+            return $pay ? $demo->payTicket($s) : $s;
         };
 
-        // Juan (Ing. Civil): una constancia esperando a Tesorería y un certificado observado
-        $start('2021104829@udh.edu.pe', 'CONSTANCIA DE EGRESADO');
+        // Juan (Ing. Civil): un ticket por pagar (para mostrar Culqi en la demo) y un trámite observado
+        $start('2021104829@udh.edu.pe', 'CONSTANCIA DE EGRESADO', pay: false);
         if ($s = $start('2021104829@udh.edu.pe', 'CERTIFICADO DE ESTUDIOS')) {
-            $wf->observe($s, $demo->actorFor($s), 'Voucher ilegible', 'Vuelva a adjuntar el comprobante de pago escaneado con buena resolución.');
+            $wf->observe($s, $demo->actorFor($s), 'Fotografía no cumple el formato', 'La foto debe ser a color, fondo blanco y vestimenta formal. Adjunta una nueva.');
         }
 
         // Ana (Derecho): un trámite finalizado con documento oficial
         if ($s = $start('2020201944@udh.edu.pe', 'CONSTANCIA DE EGRESADO')) {
             while ($s->status === 'EN_PROCESO') {
-                $s = $wf->approve($s, $demo->actorFor($s));
+                $s = $demo->approveDemo($s);
             }
         }
 
-        // Renzo (Ambiental) y Luciana (Contabilidad): trámites en Matrícula / Programa
+        // Renzo (Ambiental) y Luciana (Contabilidad): trámites pagados y en curso
         foreach (['2020210319@udh.edu.pe', '2021102941@udh.edu.pe'] as $email) {
             if ($s = $start($email, 'CERTIFICADO DE ESTUDIOS')) {
-                $wf->approve($s, $demo->actorFor($s));
+                $demo->approveDemo($s);
             }
         }
 

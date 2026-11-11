@@ -1,7 +1,7 @@
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useTheme } from '../context/ThemeContext';
 
-export const STATUS_COLORS = { EN_PROCESO: '#0ea5e9', OBSERVADO: '#f59e0b', FINALIZADO: '#2eb8a0', RECHAZADO: '#ef4444' };
+export const STATUS_COLORS = { PENDIENTE_PAGO: '#f5b400', EN_PROCESO: '#0ea5e9', OBSERVADO: '#f59e0b', FINALIZADO: '#2eb8a0', RECHAZADO: '#ef4444', VENCIDO: '#94a3b8' };
 
 function useAxis() {
     const { dark } = useTheme();

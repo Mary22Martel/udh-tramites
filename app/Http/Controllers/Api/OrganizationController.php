@@ -84,6 +84,7 @@ class OrganizationController extends Controller
             'code' => ['required', 'string', 'max:30', 'regex:/^[A-Z0-9\-_]+$/', Rule::unique('areas', 'code')->ignore($area?->id)],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'email' => ['nullable', 'email'],
             'responsible_id' => ['nullable', 'exists:users,id'],
         ], ['code.regex' => 'El código solo admite MAYÚSCULAS, números y guiones.']);
 

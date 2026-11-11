@@ -38,7 +38,7 @@ class ImportService
         'tramites' => [
             'label' => 'Trámites por carrera (o tu reporte destiptra / desesc)',
             'columns' => ['tramite', 'programa', 'categoria', 'costo', 'dias', 'flujo'],
-            'example' => ['CONSTANCIA DE PRÁCTICAS PRE PROFESIONALES', 'ING-SIST', 'Constancias y Certificados', '25', '5', 'TESORERIA>PROGRAMA_ACADEMICO>MATRICULA'],
+            'example' => ['CONSTANCIA DE PRÁCTICAS PRE PROFESIONALES', 'ING-SIST', 'Constancias y Certificados', '25', '5', 'PROGRAMA_ACADEMICO>MATRICULA'],
         ],
         'solicitudes_demo' => [
             'label' => 'Solicitudes de demostración por carrera',

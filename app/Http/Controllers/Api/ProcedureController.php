@@ -12,6 +12,9 @@ use Illuminate\Validation\Rule;
 
 class ProcedureController extends Controller
 {
+    /** Contexto para mostrar "Programa de X" / "Facultad de Y" al estudiante. */
+    protected ?\App\Models\Submission $ctx = null;
+
     public function __construct(protected WorkflowService $wf, protected ProcedureBuilder $builder) {}
 
     /** Catálogo: el estudiante ve solo lo disponible para su carrera; el personal ve todo. */
@@ -20,6 +23,7 @@ class ProcedureController extends Controller
         $user = $request->user();
 
         if ($user->isStudent()) {
+            $this->ctx = (new \App\Models\Submission)->setRelation('program', $user->program)->setRelation('faculty', $user->faculty);
             $items = $this->wf->availableProceduresFor($user)->load('requirements', 'steps');
         } else {
             $q = Procedure::with(['requirements', 'steps', 'programs:id,code,name', 'faculties:id,code,name'])
@@ -48,9 +52,20 @@ class ProcedureController extends Controller
         return ['data' => $items->map(fn ($p) => $this->present($p))->values()];
     }
 
-    public function show(Procedure $procedure)
+    public function show(Request $request, Procedure $procedure)
     {
-        return ['data' => $this->present($procedure->load(['requirements', 'steps', 'programs:id,code,name', 'faculties:id,code,name']))];
+        $u = $request->user();
+        if ($u->isStudent()) {
+            $this->ctx = (new \App\Models\Submission)->setRelation('program', $u->program)->setRelation('faculty', $u->faculty);
+        }
+        $data = $this->present($procedure->load(['requirements', 'steps', 'programs:id,code,name', 'faculties:id,code,name']));
+        if ($u->isStudent()) {
+            // Regla de seguridad: el mismo trámite no se puede volver a pedir antes de 24 horas
+            $data['block'] = app(\App\Services\WorkflowService::class)->requestBlock($procedure, $u);
+            $data['days_to_pay'] = \App\Models\Payment::DAYS_TO_PAY;
+        }
+
+        return ['data' => $data];
     }
 
     public function store(Request $request)
@@ -182,7 +197,7 @@ class ProcedureController extends Controller
             'submissions_count' => $p->submissions_count ?? null,
             'requirements' => $p->relationLoaded('requirements') ? $p->requirements->map->only(['id', 'name', 'description', 'is_required', 'file_types', 'max_size_mb'])->values() : [],
             'steps' => $p->relationLoaded('steps') ? $p->steps->map(fn ($s) => $s->only(['id', 'step_number', 'name', 'description', 'area', 'action_required', 'document_requirement', 'can_observe', 'can_reject'])
-                + ['area_label' => $this->wf->areaLabel($s->area)])->values() : [],
+                + ['area_label' => $this->wf->areaLabel($s->area, $this->ctx)])->values() : [],
         ];
     }
 }

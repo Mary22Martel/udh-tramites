@@ -33,10 +33,15 @@ export default function StudentHome() {
                         <Button variant="gold" icon={BookOpen} onClick={() => navigate('/catalogo')}>Iniciar un trámite</Button>
                         <Button variant="secondary" className="border-white/20 bg-white/10 text-white hover:bg-white/20" onClick={() => navigate('/mis-tramites')}>Ver mis trámites</Button>
                     </div>
-                    <p className="mt-4 text-sm text-white/60">Tienes {data.available_procedures} trámites disponibles para tu carrera.</p>
                 </div>
             </div>
 
+            {data.pending_payments?.length > 0 && (
+                <Callout tone="danger" className="mb-4" title={`Tienes ${data.pending_payments.length} pago(s) pendiente(s)`}>
+                    Para iniciar la atención de tus trámites, es necesario completar el pago.{' '}
+                    <button className="font-bold underline" onClick={() => navigate('/mis-pagos')}>Ir a Mis pagos</button>
+                </Callout>
+            )}
             {observed.length > 0 && (
                 <Callout tone="warning" className="mb-6" title={`Tienes ${observed.length} trámite(s) observado(s)`}>
                     Revisa la observación y envía la subsanación para que tu trámite continúe.{' '}
@@ -45,7 +50,7 @@ export default function StudentHome() {
             )}
 
             <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <StatCard label="En proceso" value={data.kpis.EN_PROCESO} icon={Clock} tone="blue" />
+                <StatCard label="En proceso" value={data.kpis.EN_PROCESO} icon={Clock} tone="blue" hint={data.kpis.PENDIENTE_PAGO ? `${data.kpis.PENDIENTE_PAGO} esperando pago` : undefined} />
                 <StatCard label="Observados" value={data.kpis.OBSERVADO} icon={AlertTriangle} tone="amber" />
                 <StatCard label="Finalizados" value={data.kpis.FINALIZADO} icon={CheckCircle2} tone="teal" />
                 <StatCard label="Denegados" value={data.kpis.RECHAZADO} icon={XCircle} tone="red" />

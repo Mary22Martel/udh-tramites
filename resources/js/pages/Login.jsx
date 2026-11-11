@@ -48,16 +48,15 @@ export default function Login() {
     };
 
     return (
-        <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+        <div className="grid grid-cols-1 min-h-screen lg:grid-cols-[1.05fr_1fr]">
             {/* Panel institucional */}
             <div className="relative hidden overflow-hidden bg-navy-udh lg:flex lg:flex-col lg:justify-between lg:p-14">
                 <div className="absolute inset-0 opacity-[0.14]" style={{ background: 'linear-gradient(135deg, transparent 0 58%, #2eb8a0 58% 100%)' }} />
                 <div className="absolute -right-24 -bottom-24 size-[420px] rounded-full bg-teal-udh/20 blur-3xl" />
                 <div className="relative flex items-center gap-4">
-                    <img src="/img/escudo.png" alt="" className="h-16" />
+                    <img src="/img/escudo.png" alt="" className="h-24" />
                     <div>
-                        <p className="text-lg font-extrabold text-white">Universidad de Huánuco</p>
-                        <p className="text-sm text-sand-udh">Quaerens Veritatem</p>
+                        <p className="text-3xl font-extrabold text-white">Universidad de Huánuco</p>
                     </div>
                 </div>
                 <div className="relative max-w-lg">
@@ -65,7 +64,7 @@ export default function Login() {
                     <h1 className="mt-4 text-5xl leading-[1.08] font-extrabold tracking-tight text-white">Tus trámites académicos, en línea y con seguimiento en tiempo real.</h1>
                     <p className="mt-5 text-lg leading-relaxed text-white/70">Solicita constancias, certificados y resoluciones; adjunta tus requisitos y paga en línea. Cada área atiende desde su bandeja y tú ves cada paso.</p>
                     <div className="mt-8 grid grid-cols-3 gap-4">
-                        {[['72+', 'trámites del TUPA'], ['15', 'carreras'], ['100%', 'trazabilidad']].map(([n, l]) => (
+                        {[['72+', 'trámites del TUPA'], ['14', 'carreras'], ['100%', 'trazabilidad']].map(([n, l]) => (
                             <div key={l} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                                 <p className="text-2xl font-extrabold text-gold-udh">{n}</p>
                                 <p className="text-xs text-white/60">{l}</p>

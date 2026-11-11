@@ -10,10 +10,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Submission extends Model
 {
     public const STATUSES = [
+        'PENDIENTE_PAGO' => 'Pendiente de pago',
         'EN_PROCESO' => 'En proceso',
         'OBSERVADO' => 'Observado',
         'FINALIZADO' => 'Finalizado',
         'RECHAZADO' => 'Rechazado',
+        'VENCIDO' => 'Vencido (no pagado)',
     ];
 
     protected $fillable = [
@@ -62,6 +64,11 @@ class Submission extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(SubmissionDocument::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
     }
 
     public function events(): HasMany

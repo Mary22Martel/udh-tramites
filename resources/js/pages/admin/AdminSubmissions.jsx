@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download, SlidersHorizontal } from 'lucide-react';
 import api, { downloadFile } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import useDetailParam from '../../lib/useDetailParam';
@@ -11,6 +11,7 @@ export default function AdminSubmissions() {
     const { meta } = useAuth();
     const [f, setF] = useState({ status: 'TODOS', search: '', faculty_id: '', program_id: '', from: '', to: '' });
     const [page, setPage] = useState(1);
+    const [showFilters, setShowFilters] = useState(false);
     const [res, setRes] = useState(null);
     const [detail, openDetail, closeDetail] = useDetailParam();
     const set = (k) => (v) => { setF({ ...f, [k]: v?.target ? v.target.value : v }); setPage(1); };
@@ -24,9 +25,12 @@ export default function AdminSubmissions() {
     return (
         <div>
             <PageHeader kicker="Gestión" title="Todas las solicitudes" description="Consulta, filtra y exporta las solicitudes de todas las carreras."
-                actions={<Button variant="secondary" icon={Download} onClick={() => downloadFile('/submissions-export', f)}>Exportar a Excel (CSV)</Button>} />
+                actions={<Button variant="secondary" icon={Download} onClick={() => downloadFile('/submissions-export', f)}>Exportar</Button>} />
             <Tabs value={f.status} onChange={set('status')} tabs={[{ value: 'TODOS', label: 'Todas' }, ...Object.entries(meta?.statuses || {}).map(([k, v]) => ({ value: k, label: v }))]} />
-            <Card className="mb-4 grid gap-3 p-4 md:grid-cols-4">
+            <SearchBar value={f.search} onChange={set('search')} placeholder="Buscar por expediente, estudiante, código o trámite…" count={res?.meta.total} countLabel="solicitudes">
+                <Button variant="secondary" icon={SlidersHorizontal} className="lg:hidden" onClick={() => setShowFilters(!showFilters)}>Filtros</Button>
+            </SearchBar>
+            <Card className={`mb-4 grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4 ${showFilters ? 'grid' : 'hidden lg:grid'}`}>
                 <Field label="Facultad">
                     <Select value={f.faculty_id} onChange={(e) => setF({ ...f, faculty_id: e.target.value, program_id: '' })}>
                         <option value="">Todas</option>
@@ -42,7 +46,6 @@ export default function AdminSubmissions() {
                 <Field label="Desde"><Input type="date" value={f.from} onChange={set('from')} /></Field>
                 <Field label="Hasta"><Input type="date" value={f.to} onChange={set('to')} /></Field>
             </Card>
-            <SearchBar value={f.search} onChange={set('search')} placeholder="Buscar por expediente, estudiante, código o trámite…" count={res?.meta.total} countLabel="solicitudes" />
             {!res ? <Spinner /> : (
                 <>
                     <SubmissionList items={res.data} onOpen={(s) => openDetail(s.id)} />

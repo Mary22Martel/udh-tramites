@@ -1,34 +1,35 @@
 export const STATUS = {
+    PENDIENTE_PAGO: { label: 'Pendiente de pago', tone: 'gold' },
     EN_PROCESO: { label: 'En proceso', tone: 'blue' },
     OBSERVADO: { label: 'Observado', tone: 'amber' },
     FINALIZADO: { label: 'Finalizado', tone: 'teal' },
     RECHAZADO: { label: 'Rechazado', tone: 'red' },
+    VENCIDO: { label: 'Vencido (no pagado)', tone: 'gray' },
 };
 
 export const ACTION_LABELS = {
     CREACION: 'Solicitud registrada',
+    PAGO_REALIZADO: 'Pago realizado',
+    CORREO_ENVIADO: 'Enviado por correo',
+    VENCIDO: 'Anulada por falta de pago',
     PAGO_REGISTRADO: 'Pago registrado',
     PAGO_VALIDADO: 'Pago validado',
-    APROBADO: 'Etapa aprobada',
+    APROBADO: 'Aprobado',
     OFICIO_ADJUNTADO: 'Oficio emitido',
     RESOLUCION_EMITIDA: 'Resolución emitida',
     CONSTANCIA_EMITIDA: 'Constancia emitida',
     OBSERVADO: 'Observación',
-    SUBSANADO: 'Observación subsanada',
+    SUBSANADO: 'Observación corregida',
     RECHAZADO: 'Solicitud denegada',
     FINALIZADO: 'Trámite finalizado',
 };
 
 export const DOC_TYPES = {
     REQUISITO: 'Requisito',
+    DOCUMENTO: 'Documento del área',
+    DOCUMENTO_FINAL: 'Documento final',
+    SUBSANACION: 'Corrección',
     COMPROBANTE_PAGO: 'Comprobante de pago',
-    OFICIO: 'Oficio',
-    RESOLUCION: 'Resolución',
-    CONSTANCIA: 'Constancia',
-    INFORME: 'Informe',
-    CONSTANCIA_FINAL: 'Documento final',
-    SUBSANACION: 'Subsanación',
-    ANEXO: 'Anexo',
 };
 
 const dateFmt = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -70,3 +71,13 @@ export function fileSize(bytes) {
 }
 
 export const cx = (...c) => c.filter(Boolean).join(' ');
+
+/** Fecha límite de pago de un ticket: "mié. 18 nov." y cuántos días hábiles quedan. */
+const deadlineFmt = new Intl.DateTimeFormat('es-PE', { weekday: 'short', day: 'numeric', month: 'short' });
+export function payDeadline(ticket) {
+    if (!ticket?.expires_at) return null;
+    const date = deadlineFmt.format(new Date(ticket.expires_at));
+    const n = ticket.days_left;
+    const left = n === 0 ? 'vence hoy' : n === 1 ? 'queda 1 día hábil' : `quedan ${n} días hábiles`;
+    return { date, left, urgent: n !== null && n <= 1, text: `Paga hasta el ${date} · ${left}` };
+}

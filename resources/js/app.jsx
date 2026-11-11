@@ -7,13 +7,14 @@ import { ToastProvider } from './context/ToastContext';
 import Layout from './components/Layout';
 import { Spinner } from './components/ui';
 import Login from './pages/Login';
-import Verify from './pages/Verify';
-import OfficialDocument from './pages/OfficialDocument';
 import Profile from './pages/Profile';
 import Catalog from './pages/Catalog';
 import StudentHome from './pages/student/StudentHome';
 import NewSubmission from './pages/student/NewSubmission';
 import MySubmissions from './pages/student/MySubmissions';
+import MyPayments from './pages/student/MyPayments';
+import CajaPayments from './pages/CajaPayments';
+import Payments from './pages/staff/Payments';
 import StaffHome from './pages/staff/StaffHome';
 import Inbox from './pages/staff/Inbox';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -45,13 +46,15 @@ function App() {
     return (
         <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/documento/:code" element={<OfficialDocument />} />
             <Route path="/" element={<Home />} />
             <Route element={<Protected><Layout /></Protected>}>
                 {/* Estudiante */}
                 <Route path="/inicio" element={<Protected roles={['ESTUDIANTE']}><StudentHome /></Protected>} />
                 <Route path="/catalogo/:id/solicitar" element={<Protected roles={['ESTUDIANTE']}><NewSubmission /></Protected>} />
                 <Route path="/mis-tramites" element={<Protected roles={['ESTUDIANTE']}><MySubmissions /></Protected>} />
+                <Route path="/mis-pagos" element={<Protected roles={['ESTUDIANTE']}><MyPayments /></Protected>} />
+                <Route path="/caja" element={<Protected roles={['ESTUDIANTE', 'TESORERIA', 'ADMINISTRADOR']}><CajaPayments /></Protected>} />
+                <Route path="/pagos" element={<Protected roles={['TESORERIA', 'ADMINISTRADOR']}><Payments /></Protected>} />
                 {/* Personal de áreas */}
                 <Route path="/panel" element={<Protected roles={['staff']}><StaffHome /></Protected>} />
                 <Route path="/bandeja" element={<Protected roles={['staff']}><Inbox scope="pendientes" /></Protected>} />
@@ -68,7 +71,6 @@ function App() {
                 <Route path="/admin/carga" element={<Protected roles={['ADMINISTRADOR']}><DataLoad /></Protected>} />
                 {/* Comunes */}
                 <Route path="/catalogo" element={<Catalog />} />
-                <Route path="/verificar/:code?" element={<Verify />} />
                 <Route path="/perfil" element={<Profile />} />
             </Route>
             <Route path="*" element={<Home />} />

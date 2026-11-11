@@ -76,7 +76,11 @@ class DashboardController extends Controller
             ->groupBy('current_area')->orderByDesc('total')->get()
             ->map(fn ($r) => ['area' => $r->current_area, 'label' => $this->wf->areaLabel($r->current_area), 'total' => (int) $r->total]);
 
-        $revenue = (float) (clone $base)->where('payment_status', 'VERIFICADO')->sum('cost');
+        $revenue = (float) \App\Models\Payment::where('status', 'PAGADO')
+            ->whereHas('submission', fn ($q) => $q
+                ->when($request->filled('faculty_id'), fn ($w) => $w->where('faculty_id', $request->faculty_id))
+                ->when($request->filled('program_id'), fn ($w) => $w->where('program_id', $request->program_id)))
+            ->sum('amount');
 
         $overdue = (clone $base)->where('status', 'EN_PROCESO')->with('procedure:id,estimated_days')->get(['id', 'procedure_id', 'created_at'])
             ->filter(fn ($s) => $s->created_at->diffInDays(now()) > ($s->procedure?->estimated_days ?? 5))->count();
@@ -145,6 +149,7 @@ class DashboardController extends Controller
 
         return [
             'kpis' => $this->statusCounts($base) + ['total' => (clone $base)->count()],
+            'pending_payments' => \App\Models\Payment::where('user_id', $user->id)->where('status', 'PENDIENTE')->get(['id', 'code', 'amount', 'concept'])->toArray(),
             'active' => (clone $base)->whereIn('status', ['EN_PROCESO', 'OBSERVADO'])
                 ->with(['student:id,name,student_code', 'program:id,code,name', 'faculty:id,code,name', 'procedure.steps', 'channel:id,name'])
                 ->orderByDesc('updated_at')->get()->map(fn ($s) => Presenter::submissionRow($s, $user)),

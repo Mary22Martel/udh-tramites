@@ -37,7 +37,7 @@ function UserModal({ user, student, onClose, onSaved }) {
     return (
         <Modal open onClose={onClose} title={user.id ? 'Editar usuario' : student ? 'Nuevo estudiante' : 'Nuevo personal'}
             footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button loading={busy} onClick={save}>Guardar</Button></>}>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Nombres y apellidos" className="sm:col-span-2"><Input value={form.name} onChange={set('name')} /></Field>
                 <Field label="Correo institucional"><Input type="email" value={form.email} onChange={set('email')} /></Field>
                 <Field label="Rol">
@@ -114,7 +114,20 @@ export default function People() {
                 )}
             </SearchBar>
             {!res ? <Spinner /> : (
-                <Card className="overflow-x-auto">
+                <>
+                <Card className="divide-y divide-line md:hidden">
+                    {res.data.map((u) => (
+                        <div key={u.id} className={cx('flex items-center gap-3 px-4 py-3', !u.is_active && 'opacity-50')}>
+                            <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-teal-udh/12 text-xs font-bold text-teal-udh-600 dark:text-teal-300">{u.initials}</div>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate font-bold text-ink">{u.name}</p>
+                                <p className="truncate text-xs text-muted">{tab === 'personal' ? `${u.role_label} · ${scopeOf(u)}` : `${u.student_code} · ${u.program?.name ?? ''}`}</p>
+                            </div>
+                            <IconButton icon={Pencil} label="Editar" onClick={() => setEdit(u)} />
+                        </div>
+                    ))}
+                </Card>
+                <Card className="hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[760px] text-sm">
                         <thead>
                             <tr className="border-b border-line text-left text-xs tracking-wider text-muted uppercase">
@@ -145,6 +158,7 @@ export default function People() {
                         </tbody>
                     </table>
                 </Card>
+                </>
             )}
             {res?.meta && <Pagination meta={res.meta} onPage={setPage} />}
             <UserModal user={edit} student={tab === 'estudiantes'} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />

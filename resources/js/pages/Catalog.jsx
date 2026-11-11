@@ -49,15 +49,12 @@ export function ProcedureInfo({ p, onClose, onApply }) {
                         </ul>
                     </div>
                     <div>
-                        <p className="kicker mb-3">Flujo de atención</p>
-                        <ol className="space-y-2">
-                            {p.steps.map((s) => (
-                                <li key={s.id} className="flex gap-3">
-                                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-navy-udh text-xs font-bold text-white dark:bg-teal-udh">{s.step_number}</span>
-                                    <div className="text-sm">
-                                        <p className="font-semibold text-ink">{s.name}</p>
-                                        <p className="text-muted">{s.area_label}{s.document_requirement ? ' · emite documento' : ''}</p>
-                                    </div>
+                        <p className="kicker mb-3">Recorrido</p>
+                        <ol className="flex flex-wrap items-center gap-2 text-sm">
+                            {p.steps.map((s, i) => (
+                                <li key={s.id} className="flex items-center gap-2">
+                                    <span className="rounded-lg bg-surface-2 px-2.5 py-1 font-semibold text-ink ring-1 ring-line">{i === 0 ? 'Tu solicitud' : s.area_label}</span>
+                                    {i < p.steps.length - 1 && <span className="text-muted">→</span>}
                                 </li>
                             ))}
                         </ol>
@@ -90,7 +87,6 @@ export default function Catalog() {
     return (
         <div>
             <PageHeader
-                kicker="Texto Único de Procedimientos Administrativos"
                 title="Catálogo de trámites"
                 description={isStudent ? `Trámites disponibles para ${user.program?.name}.` : 'Consulta los trámites vigentes, sus requisitos, costos y flujo de atención.'}
             />
@@ -104,7 +100,7 @@ export default function Catalog() {
             {!items ? <Spinner /> : filtered.length === 0 ? (
                 <Card><EmptyState icon={BookOpen} title="Sin resultados" description="Prueba con otro término de búsqueda." /></Card>
             ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {filtered.map((p) => (
                         <Card key={p.id} className="flex flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-navy-udh/5">
                             <div className="mb-3 flex flex-wrap items-center gap-2">

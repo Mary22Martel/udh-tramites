@@ -1,46 +1,61 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, CreditCard, FileText, Lock, PenLine, Send, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Clock, ExternalLink, FileText, PenLine, Receipt, Send, ShieldCheck, Wallet } from 'lucide-react';
 import api, { errorMessage } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Button, Callout, Card, Field, FileDrop, PageHeader, Spinner, Textarea } from '../../components/ui';
-import PaymentStep from '../../components/PaymentStep';
-import { cx, fmtMoney, todayISO } from '../../lib/format';
+import { cx, fmtMoney } from '../../lib/format';
 
 /**
  * Asistente para iniciar un trámite:
- *   1. Documentos   → solo si el administrador marcó algún documento como obligatorio.
+ *   1. Documentos    → solo si el administrador marcó algún documento como obligatorio.
  *   2. Justificación → siempre (descripción escrita).
- *   3. Pago          → solo si el trámite tiene costo. En línea (simulado) o con voucher.
- *   4. Confirmar.
- * Después de pagar en línea, el pago queda bloqueado: al regresar solo se editan documentos o justificación.
+ *   3. Confirmar.
+ * Si el trámite tiene costo, al enviar se genera un ticket en "Mis pagos" y el trámite
+ * empieza a atenderse cuando el estudiante lo paga.
  */
 export default function NewSubmission() {
     const { id } = useParams();
-    const { user, meta, refresh } = useAuth();
+    const { user, refresh } = useAuth();
     const toast = useToast();
     const navigate = useNavigate();
     const [proc, setProc] = useState(null);
     const [step, setStep] = useState(0);
     const [files, setFiles] = useState({});
     const [description, setDescription] = useState('');
-    const [payMode, setPayMode] = useState('online');
-    const [payment, setPayment] = useState(null); // pago en línea aprobado
-    const [offline, setOffline] = useState({ method: 'CAJA_UDH', operation: '', date: todayISO(), voucher: null });
     const [busy, setBusy] = useState(false);
 
     useEffect(() => {
-        api.get(`/procedures/${id}`).then(({ data }) => {
-            setProc(data.data);
-            // Si ya pagó este trámite y no llegó a enviarlo, se recupera ese pago (no se cobra dos veces)
-            if (data.data.requires_payment && data.data.cost > 0) {
-                api.get('/payments/pending', { params: { procedure_id: id } }).then(({ data: p }) => p.data && setPayment(p.data));
-            }
-        }).catch(() => navigate('/catalogo'));
+        api.get(`/procedures/${id}`).then(({ data }) => setProc(data.data)).catch(() => navigate('/catalogo'));
     }, [id]); // eslint-disable-line
 
     if (!proc) return <Spinner />;
+
+    // Regla de seguridad: el mismo trámite no se puede pedir dos veces en menos de 24 horas
+    if (proc.block) {
+        const waitingPay = !proc.block.available_at;
+        return (
+            <div className="mx-auto max-w-2xl">
+                <button onClick={() => navigate('/catalogo')} className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink"><ArrowLeft className="size-4" /> Volver al catálogo</button>
+                <Card className="p-6 text-center sm:p-8">
+                    <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-gold-udh/15 text-amber-700 dark:text-gold-udh">
+                        {waitingPay ? <Wallet className="size-8" /> : <Clock className="size-8" />}
+                    </span>
+                    <p className="mt-4 text-xs font-bold tracking-wider text-muted uppercase">{proc.code}</p>
+                    <h1 className="mt-1 text-xl font-extrabold text-ink sm:text-2xl">{proc.name}</h1>
+                    <p className="mt-2 text-lg font-bold text-ink">{waitingPay ? 'Ya tienes esta solicitud esperando pago' : 'Ya solicitaste este trámite hace poco'}</p>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted">{proc.block.message}</p>
+                    <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
+                        {waitingPay
+                            ? <Button icon={Wallet} onClick={() => navigate('/mis-pagos')}>Ir a Mis pagos</Button>
+                            : <Button icon={ExternalLink} onClick={() => navigate(`/mis-tramites?ver=${proc.block.submission_id}`)}>Ver mi solicitud {proc.block.submission_code}</Button>}
+                        <Button variant="secondary" onClick={() => navigate('/catalogo')}>Ver otros trámites</Button>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
 
     // Solo se piden los documentos que el administrador marcó como obligatorios
     const requiredDocs = proc.requirements.filter((r) => r.is_required);
@@ -48,13 +63,11 @@ export default function NewSubmission() {
     const steps = [
         ...(requiredDocs.length ? [{ key: 'req', label: 'Documentos', icon: FileText }] : []),
         { key: 'just', label: 'Justificación', icon: PenLine },
-        ...(needsPay ? [{ key: 'pay', label: 'Pago', icon: CreditCard }] : []),
         { key: 'ok', label: 'Confirmar', icon: ShieldCheck },
     ];
     const current = steps[step].key;
     const missing = requiredDocs.filter((r) => !files[r.id]);
-    const paidOk = payMode === 'online' ? !!payment : offline.operation.trim().length >= 4 && !!offline.voucher;
-    const canNext = { req: missing.length === 0, just: description.trim().length >= 15, pay: !!payment || paidOk, ok: true }[current];
+    const canNext = { req: missing.length === 0, just: description.trim().length >= 15, ok: true }[current];
 
     const submit = async () => {
         setBusy(true);
@@ -63,18 +76,15 @@ export default function NewSubmission() {
             fd.append('procedure_id', proc.id);
             fd.append('description', description);
             requiredDocs.forEach((r) => files[r.id] && fd.append(`files[${r.id}]`, files[r.id]));
-            if (needsPay && payment) {
-                fd.append('payment_id', payment.id);
-            } else if (needsPay) {
-                fd.append('payment_method', offline.method);
-                fd.append('payment_operation', offline.operation);
-                fd.append('payment_date', offline.date);
-                fd.append('voucher', offline.voucher);
-            }
             const { data } = await api.post('/submissions', fd);
-            toast.success(`Solicitud ${data.data.code} registrada correctamente.`);
             refresh();
-            navigate(`/mis-tramites?ver=${data.data.id}`);
+            if (data.data.status === 'PENDIENTE_PAGO' && data.data.ticket) {
+                toast.success(`Solicitud ${data.data.code} registrada. Se generó tu ticket de pago ${data.data.ticket.code}.`);
+                navigate('/mis-pagos');
+            } else {
+                toast.success(`Solicitud ${data.data.code} registrada correctamente.`);
+                navigate(`/mis-tramites?ver=${data.data.id}`);
+            }
         } catch (e) {
             toast.error(errorMessage(e));
         } finally {
@@ -93,21 +103,15 @@ export default function NewSubmission() {
                     <div key={s.key} className="flex flex-1 items-center gap-2">
                         <div className={cx('flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition',
                             i === step ? 'bg-navy-udh text-white dark:bg-teal-udh' : i < step ? 'text-teal-udh-600 dark:text-teal-300' : 'text-muted')}>
-                            <span className={cx('grid size-6 place-items-center rounded-full text-xs', i < step || (s.key === 'pay' && payment) ? 'bg-teal-udh text-white' : i === step ? 'bg-white/20' : 'bg-surface-2 ring-1 ring-line')}>
-                                {i < step || (s.key === 'pay' && payment) ? <Check className="size-3.5" /> : i + 1}
+                            <span className={cx('grid size-6 place-items-center rounded-full text-xs', i < step ? 'bg-teal-udh text-white' : i === step ? 'bg-white/20' : 'bg-surface-2 ring-1 ring-line')}>
+                                {i < step ? <Check className="size-3.5" /> : i + 1}
                             </span>
-                            <span className="hidden sm:inline">{s.label}</span>
+                            <span className={i === step ? 'inline' : 'hidden sm:inline'}>{s.label}</span>
                         </div>
                         {i < steps.length - 1 && <span className={cx('h-0.5 flex-1 rounded', i < step ? 'bg-teal-udh' : 'bg-line')} />}
                     </div>
                 ))}
             </div>
-
-            {payment && current !== 'pay' && current !== 'ok' && (
-                <Callout tone="success" className="mb-4">
-                    <span className="flex items-center gap-1.5"><Lock className="size-4" /> Pago de {fmtMoney(payment.amount)} ya realizado ({payment.transaction_code}). Puedes ajustar tus documentos o la justificación.</span>
-                </Callout>
-            )}
 
             <Card className="p-6">
                 {current === 'req' && (
@@ -127,34 +131,22 @@ export default function NewSubmission() {
                     </Field>
                 )}
 
-                {current === 'pay' && (
-                    <PaymentStep
-                        proc={proc}
-                        mode={payMode}
-                        setMode={setPayMode}
-                        payment={payment}
-                        onPaid={(p) => { setPayment(p); toast.success('Pago procesado correctamente.'); }}
-                        offline={offline}
-                        setOffline={setOffline}
-                        paymentMethods={meta?.payment_methods}
-                    />
-                )}
-
                 {current === 'ok' && (
                     <div className="space-y-4">
                         <Callout tone="info" title="Revisa antes de enviar">Al enviar, tu solicitud pasará a la primera área responsable. Recibirás notificaciones en cada avance.</Callout>
-                        <dl className="grid gap-4 sm:grid-cols-2">
+                        {needsPay && (
+                            <Callout tone="warning" title={`Este trámite cuesta ${fmtMoney(proc.cost)}`}>
+                                <span className="flex items-start gap-2">
+                                    <Receipt className="mt-0.5 size-4 shrink-0" />
+                                    <span className="min-w-0">Al enviar se generará tu <b>ticket de pago</b> en «Mis pagos». Págalo en línea (tarjeta, Yape…) o en <b>Caja UDH</b> dentro de <b>{proc.days_to_pay || 5} días hábiles</b>; si no, la solicitud se anula.</span>
+                                </span>
+                            </Callout>
+                        )}
+                        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div><dt className="text-xs font-bold text-muted uppercase">Estudiante</dt><dd className="font-semibold text-ink">{user.name} · {user.student_code}</dd></div>
                             <div><dt className="text-xs font-bold text-muted uppercase">Carrera</dt><dd className="font-semibold text-ink">{user.program?.name}</dd></div>
                             <div><dt className="text-xs font-bold text-muted uppercase">Documentos adjuntos</dt><dd className="font-semibold text-ink">{requiredDocs.length ? `${Object.values(files).filter(Boolean).length} archivo(s)` : 'No requiere'}</dd></div>
-                            <div>
-                                <dt className="text-xs font-bold text-muted uppercase">Pago</dt>
-                                <dd className="font-semibold text-ink">
-                                    {!needsPay ? 'No requiere' : payment
-                                        ? <span className="text-teal-udh-600 dark:text-teal-300">✓ Pagado en línea · {fmtMoney(payment.amount)} · {payment.transaction_code} (Tesorería lo validará)</span>
-                                        : `${fmtMoney(proc.cost)} · Voucher op. ${offline.operation} (Tesorería lo validará)`}
-                                </dd>
-                            </div>
+                            <div><dt className="text-xs font-bold text-muted uppercase">Costo</dt><dd className="font-semibold text-ink">{needsPay ? fmtMoney(proc.cost) : 'Gratuito'}</dd></div>
                             <div className="sm:col-span-2"><dt className="text-xs font-bold text-muted uppercase">Justificación</dt><dd className="text-sm text-ink">{description}</dd></div>
                         </dl>
                         <div>
@@ -173,11 +165,10 @@ export default function NewSubmission() {
                 <div className="mt-8 flex items-center justify-between border-t border-line pt-5">
                     <Button variant="ghost" icon={ArrowLeft} disabled={step === 0} onClick={() => setStep(step - 1)}>Anterior</Button>
                     {current === 'req' && missing.length > 0 && <span className="hidden text-xs text-muted sm:block">Falta: {missing.map((m) => m.name).join(', ')}</span>}
-                    {current === 'pay' && !canNext && <span className="hidden text-xs text-muted sm:block">{payMode === 'online' ? 'Realiza el pago para continuar' : 'Completa el N° de operación y el voucher'}</span>}
                     {current !== 'ok' ? (
                         <Button disabled={!canNext} onClick={() => setStep(step + 1)}>Continuar <ArrowRight className="size-4" /></Button>
                     ) : (
-                        <Button icon={Send} loading={busy} onClick={submit}>Enviar solicitud</Button>
+                        <Button icon={Send} loading={busy} onClick={submit}>{needsPay ? 'Enviar' : 'Enviar solicitud'}</Button>
                     )}
                 </div>
             </Card>

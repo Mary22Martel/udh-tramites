@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CajaController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ImportController;
+use App\Http\Controllers\Api\MailAccountController;
 use App\Http\Controllers\Api\MetaController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrganizationController;
@@ -21,9 +23,9 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::post('/demo-login', [AuthController::class, 'demoLogin']);
 Route::get('/demo-accounts', [AuthController::class, 'demoAccounts']);
-Route::get('/verificar/{code}', [SubmissionController::class, 'verify']);
+Route::post('/webhooks/culqi', [PaymentController::class, 'culqiWebhook']);
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'expire.payments'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/me', [AuthController::class, 'updateProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -49,9 +51,25 @@ Route::middleware('auth')->group(function () {
     Route::post('/submissions/{submission}/correct', [SubmissionController::class, 'correct']);
     Route::get('/documents/{document}/download', [SubmissionController::class, 'download']);
 
-    // Pago en línea (simulado)
-    Route::get('/payments/pending', [PaymentController::class, 'pending']);
-    Route::post('/payments/simulate', [PaymentController::class, 'simulate'])->middleware('throttle:20,1');
+    // Pagos
+    Route::get('/payments/config', [PaymentController::class, 'config']);
+    Route::get('/payments/mine', [PaymentController::class, 'mine']);
+    Route::get('/payments', [PaymentController::class, 'index']);              // Tesorería / Admin
+    Route::get('/payments-export', [PaymentController::class, 'export']);      // Tesorería / Admin
+    Route::get('/payments/{payment}', [PaymentController::class, 'show']);
+    Route::get('/payments/{payment}/receipt', [PaymentController::class, 'receipt']);
+    Route::middleware('throttle:20,1')->group(function () {
+        Route::post('/payments/{payment}/simulate', [PaymentController::class, 'simulate']);
+        Route::post('/payments/{payment}/culqi/charge', [PaymentController::class, 'culqiCharge']);
+        Route::post('/payments/{payment}/culqi/order', [PaymentController::class, 'culqiOrder']);
+        Route::post('/payments/{payment}/culqi/check', [PaymentController::class, 'culqiCheck']);
+        Route::post('/payments/{payment}/caja/check', [PaymentController::class, 'cajaCheck']);
+        Route::post('/payments/{payment}/caja/simulate', [PaymentController::class, 'cajaSimulate']);
+    });
+
+    // Caja UDH: pagos hechos en caja por código de estudiante
+    Route::get('/caja', [CajaController::class, 'consulta'])->middleware('throttle:30,1');
+    Route::post('/caja/cobrar/{payment}', [CajaController::class, 'cobrar']); // simulación del cajero
 
     // Solo administrador
     Route::middleware('role:ADMINISTRADOR')->group(function () {
@@ -80,6 +98,11 @@ Route::middleware('auth')->group(function () {
         Route::put('/areas/{area}', [OrganizationController::class, 'saveArea']);
         Route::delete('/areas/{area}', [OrganizationController::class, 'deleteArea']);
         Route::put('/areas/{area}/channels', [OrganizationController::class, 'saveChannels']);
+
+        // Correos de áreas, programas y facultades
+        Route::get('/mail-accounts', [MailAccountController::class, 'index']);
+        Route::put('/mail-accounts/{type}/{id}', [MailAccountController::class, 'update']);
+        Route::post('/mail-accounts/{type}/{id}/test', [MailAccountController::class, 'test'])->middleware('throttle:10,1');
 
         Route::get('/staff', [OrganizationController::class, 'staff']);
         Route::get('/students', [OrganizationController::class, 'students']);
