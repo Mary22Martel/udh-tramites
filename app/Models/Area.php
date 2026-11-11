@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Area extends Model
 {
-    protected $fillable = ['code', 'name', 'description', 'responsible_id', 'is_system', 'has_channels'];
+    protected $fillable = ['code', 'name', 'description', 'email', 'responsible_id', 'is_system', 'has_channels'];
 
     protected function casts(): array
     {

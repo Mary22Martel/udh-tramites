@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
+use App\Services\CajaService;
 use App\Services\CulqiGateway;
 use App\Services\WorkflowService;
 use App\Support\Presenter;
@@ -32,15 +33,20 @@ class PaymentController extends Controller
             'public_key' => $driver === 'culqi' ? config('services.culqi.public_key') : null,
             'orders' => $driver === 'culqi' && config('services.culqi.orders'),
             'methods' => Payment::METHODS,
+            'caja_simulated' => (bool) config('services.caja.simulate'),
+            'days_to_pay' => Payment::DAYS_TO_PAY,
         ];
     }
 
     // ------------------------------------------------------------------ Estudiante
 
-    public function mine(Request $request)
+    public function mine(Request $request, CajaService $caja)
     {
+        $caja->sync($request->user()); // si ya pagó en caja, su ticket pasa a "Pagados"
+
         $items = Payment::with('submission:id,code,procedure_name,procedure_category,status,program_id')
             ->where('user_id', $request->user()->id)
+            ->whereIn('status', ['PENDIENTE', 'PAGADO'])
             ->orderByRaw("CASE status WHEN 'PENDIENTE' THEN 0 ELSE 1 END")->latest('id')->get();
 
         return [
@@ -102,6 +108,31 @@ class PaymentController extends Controller
         $s = $this->wf->markPaid($payment, $data['method'], $reference, $this->txCode(), 'SIMULADO');
 
         return $this->paidResponse($payment, $s);
+    }
+
+    /** "Ya pagué en caja": consulta la caja y, si encuentra el pago, el trámite pasa a "en proceso". */
+    public function cajaCheck(Request $request, Payment $payment, CajaService $caja)
+    {
+        abort_unless($payment->user_id === $request->user()->id, 403);
+        $caja->sync($request->user());
+        $payment->refresh();
+        if ($payment->status === 'PAGADO') {
+            return $this->paidResponse($payment, $payment->submission);
+        }
+
+        return ['paid' => false, 'message' => 'Todavía no encontramos tu pago en Caja UDH. Si acabas de pagar, espera unos minutos y vuelve a verificar.'];
+    }
+
+    /** SOLO DEMO: simula que el estudiante pagó su ticket en la Caja UDH. */
+    public function cajaSimulate(Request $request, Payment $payment, CajaService $caja)
+    {
+        abort_unless(config('services.caja.simulate'), 404);
+        $this->guardPayable($request, $payment);
+        usleep(600_000);
+        $caja->simulate($payment);
+        $caja->sync($request->user());
+
+        return $this->paidResponse($payment, $payment->fresh()->submission);
     }
 
     /** Tarjeta / Yape con Culqi: el navegador manda el token y aquí se crea el cargo. */
@@ -296,6 +327,9 @@ class PaymentController extends Controller
         abort_unless($payment->user_id === $request->user()->id, 403, 'Este ticket no te pertenece.');
         if ($payment->status === 'PAGADO') {
             throw ValidationException::withMessages(['payment' => 'Este ticket ya fue pagado.']);
+        }
+        if ($payment->status === 'VENCIDO' || ($payment->expires_at && $payment->expires_at->isPast())) {
+            throw ValidationException::withMessages(['payment' => 'Este ticket venció (pasaron '.Payment::DAYS_TO_PAY.' días hábiles). Vuelve a solicitar el trámite.']);
         }
         if ($payment->status !== 'PENDIENTE') {
             throw ValidationException::withMessages(['payment' => 'Este ticket ya no se puede pagar.']);

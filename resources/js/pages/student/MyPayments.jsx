@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Clock, Download, ExternalLink, Receipt, Wallet } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clock, Download, ExternalLink, Receipt, Store, Wallet } from 'lucide-react';
 import api from '../../lib/api';
 import { Badge, Button, Callout, Card, EmptyState, PageHeader, Spinner, Tabs } from '../../components/ui';
 import PayModal from '../../components/PayModal';
-import { fmtDate, fmtDateTime, fmtMoney } from '../../lib/format';
+import { cx, fmtDate, fmtDateTime, fmtMoney, payDeadline } from '../../lib/format';
 
 /** Mis pagos: tickets generados por las solicitudes con costo. */
 export default function MyPayments() {
@@ -33,10 +33,11 @@ export default function MyPayments() {
 
     return (
         <div>
-            <PageHeader kicker="Pagos" title="Mis pagos" description="Cada solicitud con costo genera un ticket. Págalo aquí mismo con tarjeta, Yape u otros medios para que tu trámite empiece a atenderse." />
+            <PageHeader kicker="Pagos" title="Mis pagos" description="Cada solicitud con costo genera un ticket. Págalo en línea o en Caja UDH dentro de 5 días hábiles para que tu trámite empiece a atenderse."
+                actions={<Button variant="secondary" icon={Store} onClick={() => navigate('/caja')}>Mis pagos en caja</Button>} />
             {pending.length > 0 && (
                 <Callout tone="warning" className="mb-5" title={`Tienes ${pending.length} pago(s) pendiente(s) por ${fmtMoney(data.pending_total)}`}>
-                    Tus trámites no empiezan a atenderse hasta que pagues su ticket.
+                    Tus trámites no empiezan a atenderse hasta que pagues su ticket. Si pasan 5 días hábiles sin pagar, la solicitud se anula y tendrás que volver a pedirla.
                 </Callout>
             )}
             <Tabs value={tab} onChange={setTab} tabs={[
@@ -61,13 +62,25 @@ export default function MyPayments() {
                             <div className="flex flex-1 flex-col gap-3 p-5">
                                 <p className="text-3xl font-extrabold text-ink">{fmtMoney(p.amount)}</p>
                                 {p.status === 'PAGADO' ? (
-                                    <p className="text-sm text-muted">{p.method_label} {p.reference} · {fmtDateTime(p.paid_at)}<br /><span className="font-mono text-xs">{p.transaction_code}</span></p>
+                                    p.method === 'CAJA'
+                                        ? <p className="text-sm text-muted"><span className="inline-flex items-center gap-1 font-semibold text-ink"><Store className="size-4" /> Pagado en Caja UDH</span> · {fmtDateTime(p.paid_at)}<br /><span className="font-mono text-xs">Boleta {p.reference}</span></p>
+                                        : <p className="text-sm text-muted">{p.method_label} {p.reference} · {fmtDateTime(p.paid_at)}<br /><span className="font-mono text-xs">{p.transaction_code}</span></p>
                                 ) : (
-                                    p.failure_reason && <p className="text-xs text-red-600">Último intento rechazado: {p.failure_reason}</p>
+                                    <>
+                                        {(() => {
+                                            const d = payDeadline(p);
+                                            return d && (
+                                                <p className={cx('flex items-center gap-2 rounded-lg px-3 py-2 text-sm', d.urgent ? 'bg-red-500/10 text-red-700 dark:text-red-300' : 'bg-gold-udh/12 text-amber-800 dark:text-gold-udh')}>
+                                                    <CalendarClock className="size-4 shrink-0" /><span>Paga hasta el <b>{d.date}</b> · {d.left}</span>
+                                                </p>
+                                            );
+                                        })()}
+                                        {p.failure_reason && <p className="text-xs text-red-600">Último intento rechazado: {p.failure_reason}</p>}
+                                    </>
                                 )}
                                 <div className="mt-auto flex flex-wrap gap-2">
                                     {p.status === 'PENDIENTE' ? (
-                                        <Button className="flex-1" icon={Wallet} onClick={() => setPaying(p)}>Pagar ahora</Button>
+                                        <Button className="flex-1" icon={Wallet} onClick={() => setPaying(p)}>Pagar</Button>
                                     ) : (
                                         <Button variant="secondary" icon={Download} onClick={() => window.open(`/api/payments/${p.id}/receipt`, '_blank')}>Comprobante</Button>
                                     )}

@@ -32,6 +32,7 @@ return new class extends Migration
             $table->unsignedInteger('attempts')->default(0);
             $table->string('failure_reason')->nullable();             // último intento rechazado
             $table->timestamp('paid_at')->nullable()->index();
+            $table->timestamp('expires_at')->nullable()->index();      // fecha límite: 5 días hábiles
             $table->timestamps();
         });
     }

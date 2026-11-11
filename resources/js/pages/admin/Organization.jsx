@@ -205,6 +205,7 @@ function Areas() {
                             <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2"><p className="font-extrabold text-ink">{a.name}</p>{a.is_system && <Badge tone="gold">Sistema</Badge>}</div>
                                 <p className="text-sm text-muted">{a.code} · Responsable: {a.responsible?.name || 'sin asignar'} · {a.members_count} miembro(s)</p>
+                                {a.email && <p className="text-sm text-muted">Correo: <span className="font-semibold text-ink">{a.email}</span></p>}
                                 {a.description && <p className="mt-1 text-sm text-muted">{a.description}</p>}
                             </div>
                             <IconButton icon={Pencil} label="Editar" onClick={() => setEdit({ ...a, responsible_id: a.responsible_id || '' })} />
@@ -226,6 +227,7 @@ function Areas() {
                 fields={[
                     { key: 'code', label: 'Código', upper: true, hint: 'Ej.: BIBLIOTECA. Se usa en el flujo de los trámites.', disabled: edit?.is_system },
                     { key: 'name', label: 'Nombre' },
+                    { key: 'email', label: 'Correo del área', hint: 'Desde este correo se envían al estudiante los documentos que sube el área.' },
                     { key: 'description', label: 'Descripción', textarea: true },
                     { key: 'responsible_id', label: 'Jefe / responsable', options: staff.map((u) => ({ value: u.id, label: `${u.name} (${u.role_label})` })), placeholder: 'Sin asignar' },
                 ]} />

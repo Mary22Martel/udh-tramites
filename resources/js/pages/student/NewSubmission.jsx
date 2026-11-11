@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, FileText, PenLine, Receipt, Send, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Clock, ExternalLink, FileText, PenLine, Receipt, Send, ShieldCheck, Wallet } from 'lucide-react';
 import api, { errorMessage } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -31,6 +31,31 @@ export default function NewSubmission() {
     }, [id]); // eslint-disable-line
 
     if (!proc) return <Spinner />;
+
+    // Regla de seguridad: el mismo trámite no se puede pedir dos veces en menos de 24 horas
+    if (proc.block) {
+        const waitingPay = !proc.block.available_at;
+        return (
+            <div className="mx-auto max-w-2xl">
+                <button onClick={() => navigate('/catalogo')} className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink"><ArrowLeft className="size-4" /> Volver al catálogo</button>
+                <Card className="p-6 text-center sm:p-8">
+                    <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-gold-udh/15 text-amber-700 dark:text-gold-udh">
+                        {waitingPay ? <Wallet className="size-8" /> : <Clock className="size-8" />}
+                    </span>
+                    <p className="mt-4 text-xs font-bold tracking-wider text-muted uppercase">{proc.code}</p>
+                    <h1 className="mt-1 text-xl font-extrabold text-ink sm:text-2xl">{proc.name}</h1>
+                    <p className="mt-2 text-lg font-bold text-ink">{waitingPay ? 'Ya tienes esta solicitud esperando pago' : 'Ya solicitaste este trámite hace poco'}</p>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted">{proc.block.message}</p>
+                    <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
+                        {waitingPay
+                            ? <Button icon={Wallet} onClick={() => navigate('/mis-pagos')}>Ir a Mis pagos</Button>
+                            : <Button icon={ExternalLink} onClick={() => navigate(`/mis-tramites?ver=${proc.block.submission_id}`)}>Ver mi solicitud {proc.block.submission_code}</Button>}
+                        <Button variant="secondary" onClick={() => navigate('/catalogo')}>Ver otros trámites</Button>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
 
     // Solo se piden los documentos que el administrador marcó como obligatorios
     const requiredDocs = proc.requirements.filter((r) => r.is_required);
@@ -111,7 +136,7 @@ export default function NewSubmission() {
                         <Callout tone="info" title="Revisa antes de enviar">Al enviar, tu solicitud pasará a la primera área responsable. Recibirás notificaciones en cada avance.</Callout>
                         {needsPay && (
                             <Callout tone="warning" title={`Este trámite cuesta ${fmtMoney(proc.cost)}`}>
-                                <span className="flex items-start gap-2"><Receipt className="mt-0.5 size-4 shrink-0" /> Al enviar se generará tu <b>ticket de pago</b> en «Mis pagos». Págalo con tarjeta, Yape u otros medios y tu trámite empezará a atenderse.</span>
+                                <span className="flex items-start gap-2"><Receipt className="mt-0.5 size-4 shrink-0" /> Al enviar se generará tu <b>ticket de pago</b> en «Mis pagos». Págalo en línea (tarjeta, Yape…) o en <b>Caja UDH</b> dentro de <b>{proc.days_to_pay || 5} días hábiles</b>; si no, la solicitud se anula.</span>
                             </Callout>
                         )}
                         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -37,6 +37,11 @@ return [
         'driver' => env('PAYMENT_DRIVER', 'simulado'),
     ],
 
+    // Caja UDH. Mientras no haya conexión con el sistema de caja real, se simula.
+    'caja' => [
+        'simulate' => env('CAJA_SIMULADA', true),
+    ],
+
     'culqi' => [
         'public_key' => env('CULQI_PUBLIC_KEY'),
         'secret_key' => env('CULQI_SECRET_KEY'),

@@ -115,4 +115,8 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    // true: los documentos se envían DESDE el correo de cada área (matricula@udh.edu.pe, ...).
+    // Requiere un servidor de correo que permita "enviar como" esas direcciones (p. ej. Google Workspace).
+    'from_area' => env('MAIL_FROM_AREA', false),
+
 ];

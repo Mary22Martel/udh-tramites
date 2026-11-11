@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             TramitesPorCarreraSeeder::class, // trámites propios de cada carrera
             SolicitudesDemoSeeder::class,   // N solicitudes por carrera (estadísticas)
             DemoShowcaseSeeder::class,      // casos guionados para la presentación
+            CajaSeeder::class,              // pagos hechos en Caja UDH (simulación)
         ]);
     }
 }

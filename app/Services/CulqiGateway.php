@@ -67,7 +67,7 @@ class CulqiGateway
     /** Crea (o reutiliza) la orden de Culqi para pagar con billeteras / banca móvil / agentes. */
     public function createOrder(Payment $payment): string
     {
-        if ($payment->gateway_order_id) {
+        if ($payment->gateway_order_id && ! $this->orderIsExpired($payment->gateway_order_id)) {
             return $payment->gateway_order_id;
         }
         $user = $payment->user;
@@ -77,7 +77,8 @@ class CulqiGateway
             'amount' => (int) round($payment->amount * 100),
             'currency_code' => $payment->currency,
             'description' => Str::limit($payment->concept, 80, ''),
-            'order_number' => $payment->code.'-'.$payment->attempts,
+            // Único siempre: si se reinicia la base de datos los códigos TK-... se repiten y Culqi rechaza números de orden repetidos
+            'order_number' => $payment->code.'-'.now()->format('ymdHis').'-'.Str::upper(Str::random(4)),
             'client_details' => [
                 'first_name' => $parts[0] ?? 'Estudiante',
                 'last_name' => implode(' ', array_slice($parts, 1)) ?: 'UDH',
@@ -95,6 +96,14 @@ class CulqiGateway
         $payment->update(['gateway_order_id' => $json['id']]);
 
         return $json['id'];
+    }
+
+    /** Las órdenes duran 1 día: si venció hay que crear otra. */
+    protected function orderIsExpired(string $orderId): bool
+    {
+        $res = $this->http()->get('/orders/'.$orderId);
+
+        return ! $res->successful() || in_array($res->json('state'), ['expired', 'deleted', 'expirada'], true);
     }
 
     /** Consulta la orden en Culqi. Devuelve true si ya está pagada. */

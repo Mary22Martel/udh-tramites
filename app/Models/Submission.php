@@ -15,6 +15,7 @@ class Submission extends Model
         'OBSERVADO' => 'Observado',
         'FINALIZADO' => 'Finalizado',
         'RECHAZADO' => 'Rechazado',
+        'VENCIDO' => 'Vencido (no pagado)',
     ];
 
     protected $fillable = [

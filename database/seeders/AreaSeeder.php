@@ -20,6 +20,7 @@ class AreaSeeder extends Seeder
             $area = Area::updateOrCreate(['code' => $a['code']], [
                 'name' => $a['name'],
                 'description' => $a['description'] ?? null,
+                'email' => $a['email'] ?? null,
                 'is_system' => $a['is_system'] ?? false,
                 'has_channels' => $a['has_channels'] ?? false,
             ]);

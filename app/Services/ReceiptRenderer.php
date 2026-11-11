@@ -52,9 +52,14 @@ class ReceiptRenderer
         // Secciones
         $y += 124;
         $y = $this->section($pdf, $L, $R, $y, 'Datos del pago', [
-            ['Medio de pago', trim((Payment::METHODS[$p->method] ?? $p->method).' '.$p->reference)],
-            ['N° de transacción', $p->transaction_code ?? '—'],
-            ['Pasarela', $p->gateway === 'CULQI' ? 'Culqi' : 'Pasarela de prueba'],
+            ...($p->gateway === 'CAJA' ? [
+                ['Medio de pago', 'Pago presencial en Caja UDH'],
+                ['N° de boleta', $p->reference ?? '—'],
+            ] : [
+                ['Medio de pago', trim((Payment::METHODS[$p->method] ?? $p->method).' '.$p->reference)],
+                ['N° de transacción', $p->transaction_code ?? '—'],
+                ['Pasarela', $p->gateway === 'CULQI' ? 'Culqi' : 'Pasarela de prueba'],
+            ]),
             ['Concepto', $p->concept],
         ]);
         $y = $this->section($pdf, $L, $R, $y + 30, 'Estudiante', [
@@ -71,7 +76,7 @@ class ReceiptRenderer
         // Pie
         $foot = 770;
         $pdf->line($L, $foot, $R, $foot, 'D9DEE7');
-        $test = $p->gateway !== 'CULQI' || str_starts_with((string) $p->gateway_charge_id, 'chr_test');
+        $test = ($p->gateway === 'CAJA' && config('services.caja.simulate')) || ($p->gateway !== 'CULQI' && $p->gateway !== 'CAJA') || str_starts_with((string) $p->gateway_charge_id, 'chr_test');
         $lines = $pdf->wrap('Este comprobante acredita el pago del derecho de trámite indicado. Consérvalo para cualquier consulta en Tesorería.'
             .($test ? ' Pago realizado en entorno de prueba: sin valor real.' : ''), 8.5, $R - $L);
         foreach ($lines as $i => $l) {

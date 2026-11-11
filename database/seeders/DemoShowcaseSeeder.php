@@ -27,7 +27,7 @@ class DemoShowcaseSeeder extends Seeder
                 return null;
             }
             $files = $proc->requirements->where('is_required', true)->mapWithKeys(fn ($r) => [$r->id => $file(str_replace(' ', '_', $r->name).'.pdf')])->all();
-            $s = $wf->start($proc, $student, 'Solicito el trámite para continuar con mi proceso académico.', $files);
+            $s = $wf->start($proc, $student, 'Solicito el trámite para continuar con mi proceso académico.', $files, enforceLimits: false);
 
             return $pay ? $demo->payTicket($s) : $s;
         };

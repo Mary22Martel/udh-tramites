@@ -53,9 +53,19 @@ export default function PaymentDetail({ id, onClose }) {
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <Section icon={Receipt} title="Pago">
-                            <Row label="Medio">{p.method_label ? `${p.method_label} ${p.reference || ''}` : null}</Row>
-                            <Row label="Transacción" mono>{p.transaction_code}</Row>
-                            <Row label="Pasarela">{p.gateway === 'CULQI' ? 'Culqi' : p.gateway ? 'Prueba' : null}</Row>
+                            {p.method === 'CAJA' ? (
+                                <>
+                                    <Row label="Medio">Caja UDH (presencial)</Row>
+                                    <Row label="Boleta" mono>{p.reference}</Row>
+                                </>
+                            ) : (
+                                <>
+                                    <Row label="Medio">{p.method_label ? `${p.method_label} ${p.reference || ''}` : null}</Row>
+                                    <Row label="Transacción" mono>{p.transaction_code}</Row>
+                                    <Row label="Pasarela">{p.gateway === 'CULQI' ? 'Culqi' : p.gateway ? 'Prueba' : null}</Row>
+                                </>
+                            )}
+                            {!paid && p.expires_at && <Row label="Vence">{fmtDateTime(p.expires_at)}</Row>}
                             <Row label="Concepto">{p.concept}</Row>
                             {!paid && p.failure_reason && <Row label="Último rechazo"><span className="text-red-600">{p.failure_reason}</span></Row>}
                         </Section>

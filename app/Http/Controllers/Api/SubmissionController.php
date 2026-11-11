@@ -29,7 +29,7 @@ class SubmissionController extends Controller
         $scope = $request->input('scope', $user->isStudent() ? 'mias' : ($user->isAdmin() ? 'todas' : 'pendientes'));
 
         $q = match (true) {
-            $user->isStudent() => Submission::where('student_id', $user->id),
+            $user->isStudent() => Submission::where('student_id', $user->id)->where('status', '!=', 'VENCIDO'), // las no pagadas a tiempo desaparecen
             $scope === 'pendientes' => $this->wf->tasksQuery($user),
             $scope === 'atendidos' => Submission::whereHas('events', fn ($e) => $e->where('actor_id', $user->id)),
             $user->isAdmin() => Submission::query(),

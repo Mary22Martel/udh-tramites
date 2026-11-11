@@ -8,7 +8,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** Ticket de pago de una solicitud. */
 class Payment extends Model
 {
-    public const STATUSES = ['PENDIENTE' => 'Pendiente', 'PAGADO' => 'Pagado', 'ANULADO' => 'Anulado'];
+    public const STATUSES = ['PENDIENTE' => 'Pendiente', 'PAGADO' => 'Pagado', 'ANULADO' => 'Anulado', 'VENCIDO' => 'Vencido'];
+
+    /** Días hábiles que tiene el estudiante para pagar su ticket. */
+    public const DAYS_TO_PAY = 5;
 
     public const METHODS = [
         'TARJETA' => 'Tarjeta',
@@ -17,17 +20,18 @@ class Payment extends Model
         'BILLETERA' => 'Billetera móvil',
         'BANCA_MOVIL' => 'Banca móvil',
         'AGENTE' => 'Agente / bodega',
+        'CAJA' => 'Caja UDH',
     ];
 
     protected $fillable = [
         'code', 'submission_id', 'user_id', 'procedure_id', 'concept', 'amount', 'currency', 'status',
         'method', 'reference', 'transaction_code', 'gateway', 'gateway_order_id', 'gateway_charge_id',
-        'attempts', 'failure_reason', 'paid_at',
+        'attempts', 'failure_reason', 'paid_at', 'expires_at',
     ];
 
     protected function casts(): array
     {
-        return ['amount' => 'float', 'paid_at' => 'datetime'];
+        return ['amount' => 'float', 'paid_at' => 'datetime', 'expires_at' => 'datetime'];
     }
 
     public function submission(): BelongsTo
@@ -67,6 +71,8 @@ class Payment extends Model
             'gateway' => $this->gateway,
             'failure_reason' => $this->failure_reason,
             'paid_at' => $this->paid_at?->toIso8601String(),
+            'expires_at' => $this->expires_at?->toIso8601String(),
+            'days_left' => $this->status === 'PENDIENTE' && $this->expires_at ? \App\Support\BusinessDays::remaining($this->expires_at) : null,
             'created_at' => $this->created_at?->toIso8601String(),
             'submission_id' => $this->submission_id,
         ];

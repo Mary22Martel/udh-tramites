@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-    BarChart3, Bell, BookOpen, Wallet, Landmark, Building2, ChevronDown, ChevronLeft, ClipboardCheck, FileStack, FolderKanban,
+    BarChart3, Bell, BookOpen, Wallet, Landmark, Store, Building2, ChevronDown, ChevronLeft, ClipboardCheck, FileStack, FolderKanban,
     History, Inbox, LayoutDashboard, LogOut, Menu, Moon, PlusCircle, Sun, Upload, UserCircle2, Users, X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,7 @@ function navFor(user) {
             { section: 'Gestión', items: [
                 { to: '/admin/solicitudes', label: 'Solicitudes', icon: FileStack },
                 { to: '/pagos', label: 'Pagos', icon: Landmark },
+                { to: '/caja', label: 'Consulta de caja', icon: Store },
                 { to: '/bandeja', label: 'Bandeja general', icon: Inbox, badge: c.tasks },
                 { to: '/admin/tramites', label: 'Trámites (TUPA)', icon: FolderKanban },
                 { to: '/admin/organizacion', label: 'Organización', icon: Building2 },
@@ -35,12 +36,13 @@ function navFor(user) {
                 { to: '/catalogo', label: 'Catálogo de trámites', icon: BookOpen },
                 { to: '/mis-tramites', label: 'Mis trámites', icon: FileStack, badge: c.observed, badgeTone: 'amber' },
                 { to: '/mis-pagos', label: 'Mis pagos', icon: Wallet, badge: c.payments, badgeTone: 'red' },
+                { to: '/caja', label: 'Pagos en caja', icon: Store },
             ] },
         ];
     }
     return [
         { section: 'Principal', items: [
-            ...(user.role === 'TESORERIA' ? [{ to: '/pagos', label: 'Pagos recibidos', icon: Landmark }] : []),
+            ...(user.role === 'TESORERIA' ? [{ to: '/pagos', label: 'Pagos recibidos', icon: Landmark }, { to: '/caja', label: 'Consulta de caja', icon: Store }] : []),
             { to: '/panel', label: 'Mi panel', icon: LayoutDashboard },
             { to: '/bandeja', label: 'Bandeja de tareas', icon: Inbox, badge: c.tasks },
             { to: '/atendidos', label: 'Historial atendido', icon: History },

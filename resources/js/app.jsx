@@ -13,6 +13,7 @@ import StudentHome from './pages/student/StudentHome';
 import NewSubmission from './pages/student/NewSubmission';
 import MySubmissions from './pages/student/MySubmissions';
 import MyPayments from './pages/student/MyPayments';
+import CajaPayments from './pages/CajaPayments';
 import Payments from './pages/staff/Payments';
 import StaffHome from './pages/staff/StaffHome';
 import Inbox from './pages/staff/Inbox';
@@ -52,6 +53,7 @@ function App() {
                 <Route path="/catalogo/:id/solicitar" element={<Protected roles={['ESTUDIANTE']}><NewSubmission /></Protected>} />
                 <Route path="/mis-tramites" element={<Protected roles={['ESTUDIANTE']}><MySubmissions /></Protected>} />
                 <Route path="/mis-pagos" element={<Protected roles={['ESTUDIANTE']}><MyPayments /></Protected>} />
+                <Route path="/caja" element={<Protected roles={['ESTUDIANTE', 'TESORERIA', 'ADMINISTRADOR']}><CajaPayments /></Protected>} />
                 <Route path="/pagos" element={<Protected roles={['TESORERIA', 'ADMINISTRADOR']}><Payments /></Protected>} />
                 {/* Personal de áreas */}
                 <Route path="/panel" element={<Protected roles={['staff']}><StaffHome /></Protected>} />

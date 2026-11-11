@@ -79,7 +79,10 @@ class Presenter
             'progress' => $total ? ($s->status === 'FINALIZADO' ? 100 : (int) round(($s->current_step_index / $total) * 100)) : 0,
             'total_steps' => $total,
             'observation' => $s->observation,
-            'ticket' => ($t = $s->payments->sortByDesc('id')->first()) ? $t->only(['id', 'code', 'status', 'amount']) : null,
+            'ticket' => ($t = $s->payments->sortByDesc('id')->first()) ? $t->only(['id', 'code', 'status', 'amount', 'method', 'reference']) + [
+                'expires_at' => $t->expires_at?->toIso8601String(),
+                'days_left' => $t->status === 'PENDIENTE' && $t->expires_at ? \App\Support\BusinessDays::remaining($t->expires_at) : null,
+            ] : null,
             'created_at' => $s->created_at?->toIso8601String(),
             'updated_at' => $s->updated_at?->toIso8601String(),
             'finished_at' => $s->finished_at?->toIso8601String(),

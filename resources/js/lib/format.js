@@ -4,11 +4,14 @@ export const STATUS = {
     OBSERVADO: { label: 'Observado', tone: 'amber' },
     FINALIZADO: { label: 'Finalizado', tone: 'teal' },
     RECHAZADO: { label: 'Rechazado', tone: 'red' },
+    VENCIDO: { label: 'Vencido (no pagado)', tone: 'gray' },
 };
 
 export const ACTION_LABELS = {
     CREACION: 'Solicitud registrada',
-    PAGO_REALIZADO: 'Pago realizado en línea',
+    PAGO_REALIZADO: 'Pago realizado',
+    CORREO_ENVIADO: 'Enviado por correo',
+    VENCIDO: 'Anulada por falta de pago',
     PAGO_REGISTRADO: 'Pago registrado',
     PAGO_VALIDADO: 'Pago validado',
     APROBADO: 'Aprobado',
@@ -68,3 +71,13 @@ export function fileSize(bytes) {
 }
 
 export const cx = (...c) => c.filter(Boolean).join(' ');
+
+/** Fecha límite de pago de un ticket: "mié. 18 nov." y cuántos días hábiles quedan. */
+const deadlineFmt = new Intl.DateTimeFormat('es-PE', { weekday: 'short', day: 'numeric', month: 'short' });
+export function payDeadline(ticket) {
+    if (!ticket?.expires_at) return null;
+    const date = deadlineFmt.format(new Date(ticket.expires_at));
+    const n = ticket.days_left;
+    const left = n === 0 ? 'vence hoy' : n === 1 ? 'queda 1 día hábil' : `quedan ${n} días hábiles`;
+    return { date, left, urgent: n !== null && n <= 1, text: `Paga hasta el ${date} · ${left}` };
+}

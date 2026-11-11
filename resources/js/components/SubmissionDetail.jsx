@@ -5,7 +5,7 @@ import {
     History, Image as ImageIcon, MessageSquareWarning, Send, User, XCircle,
 } from 'lucide-react';
 import api, { downloadFile, errorMessage } from '../lib/api';
-import { ACTION_LABELS, DOC_TYPES, cx, fileSize, fmtDate, fmtDateTime, fmtMoney } from '../lib/format';
+import { ACTION_LABELS, DOC_TYPES, cx, fileSize, fmtDate, fmtDateTime, fmtMoney, payDeadline } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Badge, Button, Callout, Field, FileDrop, Input, Modal, Spinner, StatusBadge, Tabs, Textarea } from './ui';
@@ -104,7 +104,9 @@ function ActionForm({ mode, sub, onDone, onCancel }) {
             {(mode === 'approve' || mode === 'correct') && (
                 <Field
                     label={lastStep ? <>Documento para el estudiante <span className="text-red-500">*</span></> : 'Adjuntar archivo (opcional)'}
-                    hint={lastStep ? 'Es el último paso: sube el documento que recibirá el estudiante (PDF, imagen, Word…).' : mode === 'approve' ? 'Si adjuntas un archivo, el estudiante podrá verlo.' : undefined}
+                    hint={mode === 'approve'
+                        ? `${lastStep ? 'Es el último paso: sube el documento que recibirá el estudiante (PDF, imagen, Word…).' : 'Si adjuntas un archivo, el estudiante podrá verlo.'} También se le enviará automáticamente a su correo${sub.student?.email ? ` (${sub.student.email})` : ''}.`
+                        : undefined}
                 >
                     <FileDrop file={file} onChange={setFile} accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.zip" compact />
                 </Field>
@@ -210,7 +212,7 @@ export default function SubmissionDetail({ id, onClose, onChanged }) {
                 <div>
                     <div className="mb-4 flex flex-wrap items-center gap-2">
                         <StatusBadge status={sub.status} />
-                        {sub.cost > 0 && sub.status !== 'PENDIENTE_PAGO' && <Badge tone="teal"><CreditCard className="size-3" /> Pagado</Badge>}
+                        {sub.cost > 0 && sub.ticket?.status === 'PAGADO' && <Badge tone="teal"><CreditCard className="size-3" /> {sub.ticket.method === 'CAJA' ? 'Pagado en caja' : 'Pagado'}</Badge>}
                         <span className="text-xs text-muted">{fmtDate(sub.created_at)}</span>
                     </div>
 
@@ -218,8 +220,14 @@ export default function SubmissionDetail({ id, onClose, onChanged }) {
 
                     {sub.status === 'PENDIENTE_PAGO' && (
                         <Callout tone="warning" className="mt-3" title="Pendiente de pago">
-                            {isStudent ? `Paga ${fmtMoney(sub.ticket?.amount)} en «Mis pagos» y tu trámite empezará a atenderse.` : 'El estudiante aún no paga; la solicitud no ha ingresado al flujo.'}
+                            {isStudent
+                                ? <>Paga {fmtMoney(sub.ticket?.amount)} en «Mis pagos» (en línea) o en <b>Caja UDH</b> dando tu código de estudiante (el pago ya está cargado), y tu trámite empezará a atenderse.</>
+                                : 'El estudiante aún no paga; la solicitud no ha ingresado al flujo.'}
+                            {payDeadline(sub.ticket) && <span className="mt-1 block font-semibold">{payDeadline(sub.ticket).text}. Si no se paga, la solicitud se anula.</span>}
                         </Callout>
+                    )}
+                    {sub.status === 'VENCIDO' && (
+                        <Callout tone="danger" className="mt-3" title="Solicitud anulada por falta de pago">El pago no se realizó dentro del plazo de 5 días hábiles.</Callout>
                     )}
                     {sub.status === 'EN_PROCESO' && sub.current_step && (
                         <Callout className="mt-3">Ahora está en <b>{sub.current_step.area_label}</b>{sub.channel ? ` · ${sub.channel.split(':')[0]}` : ''}.</Callout>
@@ -235,7 +243,12 @@ export default function SubmissionDetail({ id, onClose, onChanged }) {
                     )}
                     {sub.status === 'FINALIZADO' && (
                         <div className="mt-3 space-y-2">
-                            <Callout tone="success" title="Trámite finalizado">{finalDocs.length ? 'Tu documento está listo para descargar.' : `Finalizado el ${fmtDate(sub.finished_at)}.`}</Callout>
+                            <Callout tone="success" title="Trámite finalizado">
+                                {finalDocs.length ? (isStudent ? 'Tu documento está listo para descargar.' : 'Documento entregado al estudiante.') : `Finalizado el ${fmtDate(sub.finished_at)}.`}
+                                {sub.events.some((e) => e.action === 'CORREO_ENVIADO') && (
+                                    <span className="mt-1 block">{isStudent ? 'También te lo enviamos a tu correo' : 'También se envió al correo'} <b>{sub.student?.email}</b>.</span>
+                                )}
+                            </Callout>
                             {finalDocs.map((d) => <DocumentRow key={d.id} d={d} highlight />)}
                         </div>
                     )}

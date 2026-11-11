@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Mail\DocumentoTramiteMail;
 use App\Models\Area;
 use App\Models\Payment;
 use App\Models\Procedure;
@@ -14,6 +15,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use App\Support\BusinessDays;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -192,9 +197,13 @@ class WorkflowService
      *
      * @param  array<int, UploadedFile|array{name:string,size?:int}>  $requirementFiles  indexados por id de requisito
      */
-    public function start(Procedure $procedure, User $student, string $description, array $requirementFiles = []): Submission
+    public function start(Procedure $procedure, User $student, string $description, array $requirementFiles = [], bool $enforceLimits = true): Submission
     {
         $procedure->loadMissing(['steps', 'requirements']);
+
+        if ($enforceLimits && ($block = $this->requestBlock($procedure, $student))) {
+            throw ValidationException::withMessages(['procedure' => $block['message']]);
+        }
 
         if ($procedure->steps->isEmpty()) {
             throw ValidationException::withMessages(['procedure' => 'El trámite no tiene pasos configurados.']);
@@ -247,10 +256,12 @@ class WorkflowService
                     'concept' => $procedure->payment_concept ?: "Derecho de trámite: {$procedure->name}",
                     'amount' => $procedure->cost,
                     'status' => 'PENDIENTE',
+                    'expires_at' => BusinessDays::add(now(), Payment::DAYS_TO_PAY),
                 ]);
                 $s->save();
                 $this->notify($student->id, 'Tienes un pago pendiente',
-                    sprintf('Se generó el ticket %s por S/ %s para tu trámite %s. Págalo en "Mis pagos" para que empiece a atenderse.', $ticket->code, number_format($ticket->amount, 2), $s->code),
+                    sprintf('Tu trámite %s tiene un pago pendiente de S/ %s. Págalo en línea («Mis pagos») o en Caja UDH dando tu código de estudiante, hasta el %s; si no, la solicitud se anula.',
+                        $s->code, number_format($ticket->amount, 2), $ticket->expires_at->locale('es')->isoFormat('dddd D [de] MMMM')),
                     'PAYMENT', $s->id);
 
                 return $s->fresh();
@@ -263,6 +274,80 @@ class WorkflowService
         });
     }
 
+    /** Horas que deben pasar para volver a solicitar el mismo trámite. */
+    public const HOURS_BETWEEN_REQUESTS = 24;
+
+    /**
+     * ¿El estudiante puede solicitar este trámite ahora?
+     * No puede si: ya tiene uno igual esperando pago, o lo solicitó / pagó hace menos de 24 horas.
+     *
+     * @return array{message:string, available_at:?string, submission_id:int, submission_code:string}|null
+     */
+    public function requestBlock(Procedure $procedure, User $student): ?array
+    {
+        $same = Submission::with('payments')->where('student_id', $student->id)
+            ->where(fn ($q) => $q->where('procedure_id', $procedure->id)->orWhere('procedure_code', $procedure->code))
+            ->where('status', '!=', 'VENCIDO')
+            ->latest('id')->get();
+
+        if ($pending = $same->firstWhere('status', 'PENDIENTE_PAGO')) {
+            return [
+                'message' => "Ya tienes una solicitud de este trámite esperando pago (expediente {$pending->code}). Págala en «Mis pagos» o en Caja UDH con tu código de estudiante.",
+                'available_at' => null,
+                'submission_id' => $pending->id,
+                'submission_code' => $pending->code,
+            ];
+        }
+
+        // Última actividad: cuándo lo solicitó o cuándo lo pagó (lo más reciente)
+        $last = $same->map(fn ($s) => [
+            's' => $s,
+            'at' => collect([$s->created_at, $s->payments->max('paid_at')])->filter()->max(),
+        ])->sortByDesc('at')->first();
+
+        if ($last && $last['at']->gt(now()->subHours(self::HOURS_BETWEEN_REQUESTS))) {
+            $availableAt = $last['at']->copy()->addHours(self::HOURS_BETWEEN_REQUESTS);
+            $wait = now()->diff($availableAt);
+            $waitText = $wait->h > 0 || $wait->d > 0 ? ($wait->d * 24 + $wait->h).' h '.$wait->i.' min' : max(1, $wait->i).' min';
+
+            return [
+                'message' => "Ya solicitaste este trámite hace menos de 24 horas (expediente {$last['s']->code}). Por seguridad podrás volver a solicitarlo en {$waitText}, desde el ".$availableAt->locale('es')->isoFormat('D [de] MMMM, h:mm a'),
+                'available_at' => $availableAt->toIso8601String(),
+                'submission_id' => $last['s']->id,
+                'submission_code' => $last['s']->code,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Anula los tickets que pasaron su fecha límite (5 días hábiles) sin pagarse.
+     * La solicitud queda "Vencida" y deja de mostrarse al estudiante: tendrá que volver a solicitar.
+     */
+    public function expireOverdue(): int
+    {
+        $overdue = Payment::with('submission')->where('status', 'PENDIENTE')
+            ->whereNotNull('expires_at')->where('expires_at', '<', now())->get();
+
+        foreach ($overdue as $ticket) {
+            DB::transaction(function () use ($ticket) {
+                $ticket->update(['status' => 'VENCIDO', 'failure_reason' => 'Venció el plazo de pago ('.Payment::DAYS_TO_PAY.' días hábiles).']);
+                $s = $ticket->submission;
+                if ($s && $s->status === 'PENDIENTE_PAGO') {
+                    $s->update(['status' => 'VENCIDO', 'payment_status' => 'VENCIDO', 'current_area' => null, 'finished_at' => now()]);
+                    SubmissionEventLogger::system($s, 1, 'VENCIDO',
+                        "Solicitud anulada: no se pagó el ticket {$ticket->code} dentro de ".Payment::DAYS_TO_PAY.' días hábiles.');
+                    $this->notify($ticket->user_id, 'Solicitud anulada por falta de pago',
+                        "Tu solicitud {$s->code} ({$s->procedure_name}) se anuló porque el ticket {$ticket->code} no se pagó a tiempo. Si aún lo necesitas, vuelve a solicitarlo.",
+                        'ALERT', null);
+                }
+            });
+        }
+
+        return $overdue->count();
+    }
+
     /**
      * Confirma el pago de un ticket (lo llama la pasarela o el simulador) y hace avanzar la solicitud.
      * Es idempotente: si el ticket ya estaba pagado no hace nada.
@@ -272,7 +357,7 @@ class WorkflowService
         return DB::transaction(function () use ($payment, $method, $reference, $transactionCode, $gateway, $gatewayChargeId) {
             $payment = Payment::lockForUpdate()->find($payment->id);
             $s = $payment->submission()->with('procedure.steps')->first();
-            if ($payment->status === 'PAGADO') {
+                if ($payment->status === 'PAGADO') {
                 return $s;
             }
 
@@ -301,11 +386,13 @@ class WorkflowService
                 'step_number' => $first?->step_number ?? 1,
                 'step_name' => 'Pago del derecho de trámite',
                 'actor_id' => $payment->user_id,
-                'actor_name' => $gateway === 'CULQI' ? 'Pasarela Culqi' : 'Pasarela de pagos (prueba)',
+                'actor_name' => match ($gateway) { 'CULQI' => 'Pasarela Culqi', 'CAJA' => 'Caja UDH', default => 'Pasarela de pagos (prueba)' },
                 'actor_role' => 'SISTEMA',
-                'actor_area' => 'Pago en línea',
+                'actor_area' => $gateway === 'CAJA' ? 'Pago en caja' : 'Pago en línea',
                 'action' => 'PAGO_REALIZADO',
-                'comment' => sprintf('Pago confirmado: %s %s, S/ %s. Ticket %s, transacción %s.', $label, $reference, number_format($payment->amount, 2), $payment->code, $transactionCode),
+                'comment' => $gateway === 'CAJA'
+                    ? sprintf('Pago en Caja UDH confirmado: boleta %s, S/ %s.', $reference, number_format($payment->amount, 2))
+                    : sprintf('Pago confirmado: %s %s, S/ %s. Ticket %s, transacción %s.', $label, $reference, number_format($payment->amount, 2), $payment->code, $transactionCode),
             ]);
 
             if ($s->status === 'PENDIENTE_PAGO') {
@@ -359,8 +446,10 @@ class WorkflowService
             throw ValidationException::withMessages(['file' => 'Es el último paso: adjunta el documento que se entregará al estudiante.']);
         }
 
-        return DB::transaction(function () use ($s, $actor, $comment, $file, $step, $steps, $isLast, $areaLabel) {
-            $docName = $file ? $this->attach($s, $file, $isLast ? 'DOCUMENTO_FINAL' : 'DOCUMENTO', $actor, $areaLabel)->name : null;
+        $doc = null;
+        $result = DB::transaction(function () use ($s, $actor, $comment, $file, $step, $steps, $isLast, $areaLabel, &$doc) {
+            $doc = $file ? $this->attach($s, $file, $isLast ? 'DOCUMENTO_FINAL' : 'DOCUMENTO', $actor, $areaLabel) : null;
+            $docName = $doc?->name;
 
             $action = $step->action_required === 'VERIFICAR_PAGO' ? 'PAGO_VALIDADO' : 'APROBADO';
             if ($action === 'PAGO_VALIDADO') {
@@ -375,13 +464,52 @@ class WorkflowService
                 $this->resolveAssignment($s);
                 $next = $steps->get($s->current_step_index);
                 $this->notify($s->student_id, 'Avance de tu trámite',
-                    "Tu trámite {$s->code} pasó a ".$this->areaLabel($next->area, $s).'.'.($docName ? ' Se adjuntó un documento.' : ''), 'INFO', $s->id);
+                    "Tu trámite {$s->code} pasó a ".$this->areaLabel($next->area, $s).'.'.($docName ? ' Se adjuntó un documento (también te lo enviamos por correo).' : ''), 'INFO', $s->id);
             }
 
             $s->save();
 
             return $s->fresh();
         });
+
+        // El documento subido también se envía al correo del estudiante, desde el correo del área
+        if ($doc?->path) {
+            $this->mailDocument($result, $doc, $step->area, $actor, $isLast);
+        }
+
+        return $result;
+    }
+
+    /** Correo institucional del área que atiende un paso. */
+    public function areaEmail(?string $area, Submission $s, ?User $actor = null): ?string
+    {
+        $s->loadMissing(['program', 'faculty']);
+
+        return match ($area) {
+            'PROGRAMA_ACADEMICO' => $s->program?->director_email,
+            'FACULTAD' => $s->faculty?->dean_email,
+            default => $this->areas()->get($area)?->email,
+        } ?: $actor?->email;
+    }
+
+    /** Envía al estudiante el documento que subió un área. Si el correo falla, el trámite sigue igual. */
+    public function mailDocument(Submission $s, SubmissionDocument $doc, ?string $area, User $actor, bool $isFinal): void
+    {
+        $s->loadMissing(['student', 'program', 'faculty']);
+        $to = $s->student?->email;
+        if (! $to) {
+            return;
+        }
+        $fromEmail = $this->areaEmail($area, $s, $actor);
+        $fromName = $this->areaLabel($area, $s).' · UDH';
+
+        try {
+            Mail::to($to)->send(new DocumentoTramiteMail($s, $doc, $fromName, $fromEmail, $isFinal));
+            SubmissionEventLogger::write($s, $this->currentStep($s)?->step_number ?? 1, 'Envío por correo', $actor, $this->areaLabel($area, $s), 'CORREO_ENVIADO',
+                "Documento «{$doc->name}» enviado al correo {$to}".($fromEmail ? " desde {$fromEmail}" : '').'.');
+        } catch (\Throwable $e) {
+            Log::warning("No se pudo enviar el correo del expediente {$s->code}: ".$e->getMessage());
+        }
     }
 
     protected function finish(Submission $s, User $actor, int $stepCount, ?string $docName = null): void

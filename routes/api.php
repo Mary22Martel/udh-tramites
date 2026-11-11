@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CajaController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\MetaController;
@@ -23,7 +24,7 @@ Route::post('/demo-login', [AuthController::class, 'demoLogin']);
 Route::get('/demo-accounts', [AuthController::class, 'demoAccounts']);
 Route::post('/webhooks/culqi', [PaymentController::class, 'culqiWebhook']);
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'expire.payments'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/me', [AuthController::class, 'updateProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -61,7 +62,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/payments/{payment}/culqi/charge', [PaymentController::class, 'culqiCharge']);
         Route::post('/payments/{payment}/culqi/order', [PaymentController::class, 'culqiOrder']);
         Route::post('/payments/{payment}/culqi/check', [PaymentController::class, 'culqiCheck']);
+        Route::post('/payments/{payment}/caja/check', [PaymentController::class, 'cajaCheck']);
+        Route::post('/payments/{payment}/caja/simulate', [PaymentController::class, 'cajaSimulate']);
     });
+
+    // Caja UDH: pagos hechos en caja por código de estudiante
+    Route::get('/caja', [CajaController::class, 'consulta'])->middleware('throttle:30,1');
+    Route::post('/caja/cobrar/{payment}', [CajaController::class, 'cobrar']); // simulación del cajero
 
     // Solo administrador
     Route::middleware('role:ADMINISTRADOR')->group(function () {

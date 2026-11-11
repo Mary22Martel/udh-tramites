@@ -56,6 +56,7 @@ return new class extends Migration
             $table->string('code')->unique(); // TESORERIA, MATRICULA, ...
             $table->string('name');
             $table->text('description')->nullable();
+            $table->string('email')->nullable(); // correo institucional del área (envía los documentos)
             $table->foreignId('responsible_id')->nullable()->constrained('users')->nullOnDelete();
             $table->boolean('is_system')->default(false);
             $table->boolean('has_channels')->default(false);

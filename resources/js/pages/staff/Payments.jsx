@@ -30,7 +30,7 @@ export default function Payments() {
     const k = res?.kpis;
     return (
         <div>
-            <PageHeader kicker="Tesorería" title="Pagos recibidos" description="Pagos en línea de los derechos de trámite. La pasarela los confirma al instante."
+            <PageHeader kicker="Tesorería" title="Pagos recibidos" description="Pagos de derechos de trámite: en línea (los confirma la pasarela) y en Caja UDH."
                 actions={<Button variant="secondary" icon={Download} onClick={() => downloadFile('/payments-export', f)}>Exportar</Button>} />
             {!res ? <Spinner /> : (
                 <>
@@ -56,7 +56,7 @@ export default function Payments() {
                     <Field label="Medio de pago">
                         <Select value={f.method} onChange={set('method')}>
                             <option value="">Todos</option>
-                            {Object.entries({ TARJETA: 'Tarjeta', YAPE: 'Yape', PLIN: 'Plin', BILLETERA: 'Billetera', BANCA_MOVIL: 'Banca móvil', AGENTE: 'Agente' }).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                            {Object.entries({ CAJA: 'Caja UDH', TARJETA: 'Tarjeta', YAPE: 'Yape', PLIN: 'Plin', BILLETERA: 'Billetera', BANCA_MOVIL: 'Banca móvil', AGENTE: 'Agente' }).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                         </Select>
                     </Field>
                     <Field label="Carrera">

@@ -58,7 +58,14 @@ class ProcedureController extends Controller
         if ($u->isStudent()) {
             $this->ctx = (new \App\Models\Submission)->setRelation('program', $u->program)->setRelation('faculty', $u->faculty);
         }
-        return ['data' => $this->present($procedure->load(['requirements', 'steps', 'programs:id,code,name', 'faculties:id,code,name']))];
+        $data = $this->present($procedure->load(['requirements', 'steps', 'programs:id,code,name', 'faculties:id,code,name']));
+        if ($u->isStudent()) {
+            // Regla de seguridad: el mismo trámite no se puede volver a pedir antes de 24 horas
+            $data['block'] = app(\App\Services\WorkflowService::class)->requestBlock($procedure, $u);
+            $data['days_to_pay'] = \App\Models\Payment::DAYS_TO_PAY;
+        }
+
+        return ['data' => $data];
     }
 
     public function store(Request $request)

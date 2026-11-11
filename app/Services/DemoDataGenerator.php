@@ -138,7 +138,7 @@ class DemoDataGenerator
                 $files[$req->id] = ['name' => str_replace(' ', '_', mb_substr($req->name, 0, 40)).'_'.$student->student_code.'.'.$ext, 'size' => random_int(120, 2400) * 1024];
             }
         }
-        $s = $this->wf->start($procedure, $student, self::REASONS[array_rand(self::REASONS)], $files);
+        $s = $this->wf->start($procedure, $student, self::REASONS[array_rand(self::REASONS)], $files, enforceLimits: false);
 
         // Trámite con costo: el estudiante paga su ticket (algunos recientes quedan sin pagar)
         if ($s->status === 'PENDIENTE_PAGO') {
@@ -231,6 +231,15 @@ class DemoDataGenerator
         $ticket = $s->payments()->where('status', 'PENDIENTE')->first();
         if (! $ticket) {
             return $s;
+        }
+        // Uno de cada cuatro paga en Caja UDH (presencial)
+        if (random_int(1, 4) === 1 && $ticket->user?->student_code) {
+            $caja = app(\App\Services\CajaService::class);
+            $row = $caja->simulate($ticket);
+            $row->update(['cashier' => ['Caja 1 · Sede central', 'Caja 2 · Sede central', 'Caja 3 · La Esperanza'][random_int(0, 2)]]);
+            $caja->sync($ticket->user);
+
+            return $s->fresh();
         }
         $method = ['YAPE', 'YAPE', 'YAPE', 'PLIN', 'TARJETA', 'TARJETA'][random_int(0, 5)];
         $reference = $method === 'TARJETA' ? '•••• '.random_int(1000, 9999) : '9•• ••• '.random_int(100, 999);
