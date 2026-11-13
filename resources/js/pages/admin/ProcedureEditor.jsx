@@ -139,7 +139,7 @@ export default function ProcedureEditor() {
                     <p className="kicker flex items-center gap-2"><Workflow className="size-4" /> Flujo de atención ({form.steps.length} pasos)</p>
                     <Button size="sm" variant="secondary" icon={Plus} onClick={() => set('steps', [...form.steps, { name: '', description: '', area: 'MATRICULA', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_return: true, days: 3 }])}>Agregar paso</Button>
                 </div>
-                <Callout className="mb-4">El <b>paso 1</b> es la solicitud del estudiante. Cada área siguiente <b>revisa y aprueba</b> (puede adjuntar un archivo opcional que verá el estudiante). El <b>último paso</b> sube el documento final que recibe el estudiante. Cada área tiene su <b>plazo en días hábiles</b> (3 por defecto) que empieza a contar cuando la solicitud llega a ella. «Programa académico» y «Facultad» se asignan solos según la carrera del estudiante. Agrega <b>Tesorería</b> solo si este trámite exige que apruebe el pago.</Callout>
+                <Callout className="mb-4">El <b>paso 1</b> es la solicitud del estudiante. Cada área siguiente <b>revisa y aprueba</b> (puede adjuntar un archivo opcional que verá el estudiante). El <b>último paso</b> sube el documento final que recibe el estudiante y se le envía por correo automáticamente; en los demás pasos, activa «Puede enviar documentos al correo» solo en las áreas que deban hacerlo. Cada área tiene su <b>plazo en días hábiles</b> (3 por defecto) que empieza a contar cuando la solicitud llega a ella. «Programa académico» y «Facultad» se asignan solos según la carrera del estudiante. Agrega <b>Tesorería</b> solo si este trámite exige que apruebe el pago.</Callout>
                 <ol className="space-y-3">
                     {form.steps.map((s, i) => (
                         <li key={i} className="flex gap-3">
@@ -170,6 +170,9 @@ export default function ProcedureEditor() {
                                     <div className="flex flex-wrap gap-5 md:col-span-12">
                                         <Toggle checked={s.can_observe} onChange={(v) => setItem('steps', i, 'can_observe', v)} label="Puede observar" />
                                         {i > 1 && <Toggle checked={s.can_return ?? true} onChange={(v) => setItem('steps', i, 'can_return', v)} label="Puede derivar a un área anterior" />}
+                                        {i < form.steps.length - 1
+                                            ? <Toggle checked={!!s.can_email} onChange={(v) => setItem('steps', i, 'can_email', v)} label="Puede enviar documentos al correo del estudiante" />
+                                            : <Badge tone="teal">Envía el documento final al correo automáticamente</Badge>}
                                         {s.area === 'TESORERIA' && <Badge tone="gold">Tesorería aprueba el pago</Badge>}
                                         {i === form.steps.length - 1 && <Badge tone="navy">Último paso: sube el documento final</Badge>}
                                     </div>

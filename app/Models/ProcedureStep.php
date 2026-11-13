@@ -27,7 +27,7 @@ class ProcedureStep extends Model
 
     protected $fillable = [
         'procedure_id', 'step_number', 'name', 'description', 'area', 'action_required',
-        'document_requirement', 'can_observe', 'can_reject', 'days', 'can_return',
+        'document_requirement', 'can_observe', 'can_reject', 'days', 'can_return', 'can_email',
     ];
 
     /** Días hábiles por defecto que tiene un área para atender su paso. */
@@ -35,6 +35,6 @@ class ProcedureStep extends Model
 
     protected function casts(): array
     {
-        return ['can_observe' => 'boolean', 'can_reject' => 'boolean', 'can_return' => 'boolean', 'days' => 'integer'];
+        return ['can_observe' => 'boolean', 'can_reject' => 'boolean', 'can_return' => 'boolean', 'can_email' => 'boolean', 'days' => 'integer'];
     }
 }

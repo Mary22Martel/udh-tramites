@@ -509,8 +509,8 @@ class WorkflowService
         });
 
         // Último paso: el documento se envía siempre al correo del estudiante.
-        // Pasos intermedios: solo si el área marcó "Enviar al correo del estudiante".
-        if ($doc?->path && ($isLast || $sendMail)) {
+        // Pasos intermedios: solo si el administrador dio ese permiso al paso Y el área marcó "Enviar al correo".
+        if ($doc?->path && ($isLast || ($sendMail && $step->can_email))) {
             $this->mailDocument($result, $doc, $step->area, $actor, $isLast);
         }
 
@@ -701,6 +701,25 @@ class WorkflowService
         });
     }
 
+    /**
+     * ¿El paso donde se subió este documento tiene permiso para enviarlo por correo?
+     * El documento final siempre se puede (re)enviar.
+     */
+    public function canEmailDocument(Submission $s, SubmissionDocument $doc): bool
+    {
+        if ($doc->type === 'DOCUMENTO_FINAL') {
+            return true;
+        }
+        $steps = $s->loadMissing('procedure.steps')->procedure?->steps ?? collect();
+        if ($doc->step_number) {
+            return (bool) $steps->firstWhere('step_number', $doc->step_number)?->can_email;
+        }
+        // Documentos antiguos sin paso guardado: se busca el paso del área de quien lo subió
+        $area = ($u = User::find($doc->uploaded_by)) ? $this->userArea($u) : null;
+
+        return (bool) $steps->first(fn ($st) => $st->area === $area && $st->can_email);
+    }
+
     /** Envía al estudiante, por correo, un documento que subió un área (botón «Enviar al correo»). */
     public function sendDocumentByMail(Submission $s, SubmissionDocument $doc, User $actor): void
     {
@@ -709,6 +728,9 @@ class WorkflowService
         }
         if (! $actor->isAdmin() && $doc->uploaded_by !== $actor->id) {
             throw ValidationException::withMessages(['document' => 'Solo quien subió el documento puede enviarlo por correo.']);
+        }
+        if (! $this->canEmailDocument($s, $doc)) {
+            throw ValidationException::withMessages(['document' => 'Este paso del trámite no tiene permiso para enviar documentos por correo. El administrador puede activarlo en la configuración del trámite.']);
         }
         $area = $this->userArea($actor) ?? $this->currentStep($s->loadMissing('procedure.steps'))?->area;
         if (! $this->mailDocument($s, $doc, $area, $actor, $doc->type === 'DOCUMENTO_FINAL')) {
@@ -750,6 +772,7 @@ class WorkflowService
                 'uploaded_by' => $by->id,
                 'uploaded_by_name' => $by->name,
                 'official_number' => $officialNumber,
+                'step_number' => $this->currentStep($s)?->step_number,
             ]);
         }
 

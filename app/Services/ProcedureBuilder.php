@@ -178,6 +178,7 @@ class ProcedureBuilder
                         'can_observe' => (bool) ($step['can_observe'] ?? true),
                         'can_reject' => false, // ya no se rechaza: se observa (al estudiante) o se deriva (a un área anterior)
                         'can_return' => (bool) ($step['can_return'] ?? true),
+                        'can_email' => (bool) ($step['can_email'] ?? false), // puede enviar documentos al correo del estudiante
                         // Plazo del área en días hábiles (el paso del estudiante no tiene plazo; si viene vacío o en 0, se usan 3)
                         'days' => ($step['area'] ?? '') === 'ESTUDIANTE' ? 0 : ((int) ($step['days'] ?? 0) ?: ProcedureStep::DEFAULT_DAYS),
                     ]);
@@ -211,7 +212,7 @@ class ProcedureBuilder
             'program_ids' => [$program->id],
             'parent_id' => $base->id,
             'requirements' => $base->requirements->map->only(['name', 'description', 'is_required', 'file_types', 'max_size_mb'])->all(),
-            'steps' => $base->steps->map->only(['name', 'description', 'area', 'action_required', 'document_requirement', 'can_observe', 'can_return', 'days'])->all(),
+            'steps' => $base->steps->map->only(['name', 'description', 'area', 'action_required', 'document_requirement', 'can_observe', 'can_return', 'can_email', 'days'])->all(),
         ]);
     }
 }

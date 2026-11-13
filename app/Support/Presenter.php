@@ -134,6 +134,7 @@ class Presenter
                 'action_required' => $st->action_required,
                 'can_observe' => $st->can_observe,
                 'can_return' => $st->can_return,
+                'can_email' => $st->can_email,
                 'days' => $st->days ?: ProcedureStep::DEFAULT_DAYS,
                 'state' => $state,
             ];
@@ -149,7 +150,8 @@ class Presenter
             'uploaded_by_name' => $d->uploaded_by_name,
             // El área que subió el documento puede enviarlo al correo del estudiante con un botón
             'can_mail' => $d->path && in_array($d->type, ['DOCUMENTO', 'DOCUMENTO_FINAL'], true)
-                && ($viewer->isAdmin() || $d->uploaded_by === $viewer->id),
+                && ($viewer->isAdmin() || $d->uploaded_by === $viewer->id)
+                && $wf->canEmailDocument($s, $d), // permiso del paso (lo da el administrador en el trámite)
             'official_number' => $d->official_number,
             'created_at' => $d->created_at?->toIso8601String(),
         ])->all();
@@ -176,6 +178,7 @@ class Presenter
             'can_correct' => $s->status === 'OBSERVADO' && $s->student_id === $viewer->id,
             'is_last_step' => $canAct && $isLast,          // debe subir el documento final
             'is_payment_step' => $canAct && $current?->action_required === 'VERIFICAR_PAGO',
+            'can_email' => $canAct && (bool) $current?->can_email, // muestra la casilla "Enviar también al correo"
         ];
         $row['return_targets'] = $canAct ? $wf->returnTargets($s) : [];
 

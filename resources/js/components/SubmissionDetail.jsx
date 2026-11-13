@@ -133,7 +133,7 @@ function ActionForm({ mode, sub, onDone, onCancel }) {
                     <FileDrop file={file} onChange={setFile} accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.zip" compact />
                 </Field>
             )}
-            {mode === 'approve' && !lastStep && file && (
+            {mode === 'approve' && !lastStep && file && p.can_email && (
                 <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface px-3 py-2.5">
                     <input type="checkbox" checked={sendMail} onChange={(e) => setSendMail(e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-teal-udh)]" />
                     <span className="text-sm text-ink">

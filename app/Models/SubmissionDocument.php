@@ -9,7 +9,7 @@ class SubmissionDocument extends Model
 {
     protected $fillable = [
         'submission_id', 'name', 'type', 'category', 'path', 'mime', 'size_bytes',
-        'uploaded_by', 'uploaded_by_name', 'official_number',
+        'uploaded_by', 'uploaded_by_name', 'official_number', 'step_number',
     ];
 
     protected $hidden = ['path'];

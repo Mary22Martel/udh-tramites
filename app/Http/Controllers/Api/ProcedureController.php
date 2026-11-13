@@ -171,6 +171,7 @@ class ProcedureController extends Controller
             'steps.*.document_requirement' => ['nullable', 'string'],
             'steps.*.can_observe' => ['boolean'],
             'steps.*.can_return' => ['boolean'],
+            'steps.*.can_email' => ['boolean'],
             'steps.*.days' => ['nullable', 'integer', 'min:0', 'max:60'], // el paso 1 (estudiante) no tiene plazo
         ], [
             // Mensajes claros para el administrador (:position = número del paso o del documento)
@@ -211,7 +212,7 @@ class ProcedureController extends Controller
             'faculties' => $p->relationLoaded('faculties') ? $p->faculties->map->only(['id', 'code', 'name'])->values() : [],
             'submissions_count' => $p->submissions_count ?? null,
             'requirements' => $p->relationLoaded('requirements') ? $p->requirements->map->only(['id', 'name', 'description', 'is_required', 'file_types', 'max_size_mb'])->values() : [],
-            'steps' => $p->relationLoaded('steps') ? $p->steps->map(fn ($s) => $s->only(['id', 'step_number', 'name', 'description', 'area', 'action_required', 'document_requirement', 'can_observe', 'can_return', 'days'])
+            'steps' => $p->relationLoaded('steps') ? $p->steps->map(fn ($s) => $s->only(['id', 'step_number', 'name', 'description', 'area', 'action_required', 'document_requirement', 'can_observe', 'can_return', 'can_email', 'days'])
                 + ['area_label' => $this->wf->areaLabel($s->area, $this->ctx)])->values() : [],
         ];
     }
