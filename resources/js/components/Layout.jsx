@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-    BarChart3, Bell, BookOpen, Wallet, Landmark, Store, Building2, ChevronDown, ChevronLeft, ClipboardCheck, FileStack, FolderKanban,
+    BarChart3, Bell, BookOpen, Wallet, Landmark, Store, HandCoins, Building2, ChevronDown, ChevronLeft, ClipboardCheck, FileStack, FolderKanban,
     History, Inbox, LayoutDashboard, LogOut, Menu, Moon, PlusCircle, Sun, Upload, UserCircle2, Users, X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -42,7 +42,7 @@ function navFor(user) {
     }
     return [
         { section: 'Principal', items: [
-            ...(user.role === 'TESORERIA' ? [{ to: '/pagos', label: 'Pagos recibidos', icon: Landmark }, { to: '/caja', label: 'Consulta de caja', icon: Store }] : []),
+            ...(user.role === 'TESORERIA' ? [{ to: '/cobrar', label: 'Cobrar pagos', icon: HandCoins, badge: c.pending_payments, badgeTone: 'red' }, { to: '/pagos', label: 'Pagos recibidos', icon: Landmark }, { to: '/caja', label: 'Consulta de caja', icon: Store }] : []),
             { to: '/panel', label: 'Mi panel', icon: LayoutDashboard },
             { to: '/bandeja', label: 'Bandeja de tareas', icon: Inbox, badge: c.tasks },
             { to: '/atendidos', label: 'Historial atendido', icon: History },

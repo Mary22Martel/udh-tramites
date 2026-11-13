@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Area;
+use App\Models\Payment;
 use App\Models\Program;
 use App\Models\Submission;
 use App\Models\User;
@@ -25,6 +26,13 @@ class DemoDataGenerator
         ['Fotografía no cumple el formato', 'La foto debe ser a color, fondo blanco y vestimenta formal.'],
         ['Documento incompleto', 'Falta la firma del asesor en el documento adjunto.'],
         ['Monto de pago incorrecto', 'El monto abonado no coincide con el TUPA vigente. Adjunte el pago complementario.'],
+    ];
+
+    protected const DERIVATIONS = [
+        'Falta el visto bueno del programa en el informe',
+        'Los datos del expediente no coinciden con el registro académico',
+        'Falta adjuntar la constancia de no adeudo del área',
+        'Revisar nuevamente el récord de notas',
     ];
 
     protected const REJECTIONS = [
@@ -156,8 +164,7 @@ class DemoDataGenerator
         $outcome = match (true) {
             $roll <= 48 => 'FINALIZADO',
             $roll <= 76 => 'EN_PROCESO',
-            $roll <= 90 => 'OBSERVADO',
-            default => 'RECHAZADO',
+            default => 'OBSERVADO',
         };
         // Las solicitudes antiguas casi siempre ya terminaron (como en la realidad)
         $ageDays = $clock->diffInDays($realNow);
@@ -167,6 +174,7 @@ class DemoDataGenerator
         $steps = $procedure->steps->count();
         $stopAt = $outcome === 'FINALIZADO' ? $steps : random_int(1, max(1, $steps - 1));
         $alreadyObserved = false;
+        $alreadyDerived = false;
 
         while ($s->status === 'EN_PROCESO' && $s->current_step_index < $stopAt) {
             if (! $this->tick($realNow)) {
@@ -188,17 +196,24 @@ class DemoDataGenerator
                 continue;
             }
 
+            // Algunas veces un área devuelve la solicitud a un área anterior (derivar) y el flujo sigue
+            if (! $alreadyDerived && random_int(1, 100) <= 8 && ($targets = $this->wf->returnTargets($s))) {
+                $t = $targets[array_rand($targets)];
+                $s = $this->wf->derive($s, $actor, $t['index'], self::DERIVATIONS[array_rand(self::DERIVATIONS)]);
+                $alreadyDerived = true;
+
+                continue;
+            }
+
             $s = $this->approveDemo($s, $actor);
         }
 
-        if ($s->status === 'EN_PROCESO' && in_array($outcome, ['OBSERVADO', 'RECHAZADO'], true) && $this->tick($realNow)) {
+        if ($s->status === 'EN_PROCESO' && $outcome === 'OBSERVADO' && $this->tick($realNow)) {
             $step = $this->wf->currentStep($s->load('procedure.steps'));
             $actor = $this->actorFor($s);
-            if ($outcome === 'OBSERVADO' && $step?->can_observe) {
+            if ($step?->can_observe) {
                 [$reason, $detail] = self::OBSERVATIONS[array_rand(self::OBSERVATIONS)];
                 $s = $this->wf->observe($s, $actor, $reason, $detail);
-            } elseif ($outcome === 'RECHAZADO' && $step?->can_reject) {
-                $s = $this->wf->reject($s, $actor, self::REJECTIONS[array_rand(self::REJECTIONS)]);
             }
         }
 
@@ -244,7 +259,7 @@ class DemoDataGenerator
         $method = ['YAPE', 'YAPE', 'YAPE', 'PLIN', 'TARJETA', 'TARJETA'][random_int(0, 5)];
         $reference = $method === 'TARJETA' ? '•••• '.random_int(1000, 9999) : '9•• ••• '.random_int(100, 999);
 
-        return $this->wf->markPaid($ticket, $method, $reference, 'TX-'.now()->format('ymd').'-'.strtoupper(\Illuminate\Support\Str::random(6)), 'SIMULADO');
+        return $this->wf->markPaid($ticket, $method, $reference, 'TX-'.now()->format('ymd').'-'.strtoupper(\Illuminate\Support\Str::random(6)), 'SIMULADO', null, $method === 'TARJETA' ? Payment::simulatedCard() : null);
     }
 
     /** Avanza el reloj simulado. Devuelve false si llegaría al futuro. */

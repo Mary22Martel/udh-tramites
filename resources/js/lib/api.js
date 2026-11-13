@@ -27,8 +27,10 @@ api.interceptors.response.use(
 export function errorMessage(error, fallback = 'Ocurrió un error inesperado.') {
     const data = error?.response?.data;
     if (data?.errors) {
-        const first = Object.values(data.errors)[0];
-        return Array.isArray(first) ? first[0] : String(first);
+        // Muestra hasta 3 problemas a la vez, para corregir todo de una
+        const all = Object.values(data.errors).flat().map(String);
+        const shown = all.slice(0, 3).join(' · ');
+        return all.length > 3 ? `${shown} · y ${all.length - 3} más.` : shown;
     }
     return data?.message || fallback;
 }

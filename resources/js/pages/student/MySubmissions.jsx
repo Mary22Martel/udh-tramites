@@ -24,7 +24,7 @@ export default function MySubmissions() {
                 actions={<Button icon={Plus} onClick={() => navigate('/catalogo')}>Nuevo trámite</Button>} />
             <Tabs value={status} onChange={(v) => { setStatus(v); setPage(1); }} tabs={[
                 { value: 'TODOS', label: 'Todos' }, { value: 'PENDIENTE_PAGO', label: 'Por pagar' }, { value: 'EN_PROCESO', label: 'En proceso' }, { value: 'OBSERVADO', label: 'Observados' },
-                { value: 'FINALIZADO', label: 'Finalizados' }, { value: 'RECHAZADO', label: 'Denegados' },
+                { value: 'FINALIZADO', label: 'Finalizados' },
             ]} />
             <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Buscar por código o trámite…" count={res?.meta.total} countLabel="solicitudes" />
             {!res ? <Spinner /> : (

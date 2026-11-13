@@ -82,8 +82,8 @@ class DashboardController extends Controller
                 ->when($request->filled('program_id'), fn ($w) => $w->where('program_id', $request->program_id)))
             ->sum('amount');
 
-        $overdue = (clone $base)->where('status', 'EN_PROCESO')->with('procedure:id,estimated_days')->get(['id', 'procedure_id', 'created_at'])
-            ->filter(fn ($s) => $s->created_at->diffInDays(now()) > ($s->procedure?->estimated_days ?? 5))->count();
+        // Fuera de plazo: el área actual superó sus días hábiles para atender
+        $overdue = (clone $base)->where('status', 'EN_PROCESO')->whereNotNull('step_due_at')->where('step_due_at', '<', now())->count();
 
         $recent = (clone $base)->with(['student:id,name,student_code', 'program:id,code,name', 'faculty:id,code,name', 'procedure.steps', 'channel:id,name'])
             ->orderByDesc('updated_at')->limit(8)->get()->map(fn ($s) => Presenter::submissionRow($s));
@@ -119,7 +119,7 @@ class DashboardController extends Controller
         $myEvents = \App\Models\SubmissionEvent::where('actor_id', $user->id);
 
         $oldest = (clone $pending)->with(['student:id,name,student_code', 'program:id,code,name', 'faculty:id,code,name', 'procedure.steps', 'channel:id,name'])
-            ->orderBy('updated_at')->limit(6)->get()->map(fn ($s) => Presenter::submissionRow($s, $user));
+            ->orderByRaw('CASE WHEN step_due_at IS NULL THEN 1 ELSE 0 END')->orderBy('step_due_at')->limit(6)->get()->map(fn ($s) => Presenter::submissionRow($s, $user));
 
         $byProcedure = (clone $pending)->selectRaw('procedure_name as name, count(*) as total')->groupBy('procedure_name')->orderByDesc('total')->limit(6)->get();
 
@@ -132,7 +132,8 @@ class DashboardController extends Controller
                 'attended' => (clone $attended)->count(),
                 'this_month' => (clone $myEvents)->where('created_at', '>=', now()->startOfMonth())->count(),
                 'observed' => (clone $myEvents)->where('action', 'OBSERVADO')->count(),
-                'overdue' => (clone $pending)->where('updated_at', '<', now()->subDays(3))->count(),
+                // Fuera del plazo que tiene mi área (días hábiles del paso)
+                'overdue' => (clone $pending)->whereNotNull('step_due_at')->where('step_due_at', '<', now())->count(),
             ],
             'oldest' => $oldest,
             'by_procedure' => $byProcedure,

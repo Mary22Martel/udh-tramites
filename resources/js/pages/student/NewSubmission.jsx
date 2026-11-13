@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Button, Callout, Card, Field, FileDrop, PageHeader, Spinner, Textarea } from '../../components/ui';
 import { cx, fmtMoney } from '../../lib/format';
+import { acceptFor, prepareUpload } from '../../lib/upload';
 
 /**
  * Asistente para iniciar un trámite:
@@ -23,6 +24,14 @@ export default function NewSubmission() {
     const [proc, setProc] = useState(null);
     const [step, setStep] = useState(0);
     const [files, setFiles] = useState({});
+    const [fileMsg, setFileMsg] = useState({}); // por requisito: { error } o { note }
+    const pick = async (r, f) => {
+        if (!f) { setFiles((x) => ({ ...x, [r.id]: null })); setFileMsg((x) => ({ ...x, [r.id]: null })); return; }
+        setFileMsg((x) => ({ ...x, [r.id]: { note: 'Revisando archivo…' } }));
+        const res = await prepareUpload(f, { types: r.file_types || [], maxMb: r.max_size_mb, label: r.name });
+        setFiles((x) => ({ ...x, [r.id]: res.file || null }));
+        setFileMsg((x) => ({ ...x, [r.id]: res.error ? { error: res.error } : res.note ? { note: res.note } : null }));
+    };
     const [description, setDescription] = useState('');
     const [busy, setBusy] = useState(false);
 
@@ -119,7 +128,9 @@ export default function NewSubmission() {
                         <p className="text-sm text-muted">Este trámite requiere los siguientes documentos. Todos son obligatorios.</p>
                         {requiredDocs.map((r) => (
                             <Field key={r.id} label={<>{r.name} <span className="text-red-500">*</span></>} hint={`${r.description || ''} Formatos: ${(r.file_types || []).join(', ')} · máx. ${r.max_size_mb} MB`}>
-                                <FileDrop file={files[r.id]} onChange={(f) => setFiles({ ...files, [r.id]: f })} accept={(r.file_types || []).join(',')} />
+                                <FileDrop file={files[r.id]} onChange={(f) => pick(r, f)} accept={acceptFor(r.file_types || [])} />
+                                {fileMsg[r.id]?.error && <p className="mt-1.5 text-sm font-semibold text-red-600">{fileMsg[r.id].error}</p>}
+                                {fileMsg[r.id]?.note && <p className="mt-1.5 text-xs text-teal-udh-600 dark:text-teal-300">{fileMsg[r.id].note}</p>}
                             </Field>
                         ))}
                     </div>
@@ -162,13 +173,16 @@ export default function NewSubmission() {
                     </div>
                 )}
 
+                {current === 'req' && missing.length > 0 && (
+                    <p className="mt-6 text-xs text-muted sm:hidden">Para continuar falta subir: <b className="text-ink">{missing.map((m) => m.name).join(', ')}</b></p>
+                )}
                 <div className="mt-8 flex items-center justify-between border-t border-line pt-5">
                     <Button variant="ghost" icon={ArrowLeft} disabled={step === 0} onClick={() => setStep(step - 1)}>Anterior</Button>
                     {current === 'req' && missing.length > 0 && <span className="hidden text-xs text-muted sm:block">Falta: {missing.map((m) => m.name).join(', ')}</span>}
                     {current !== 'ok' ? (
                         <Button disabled={!canNext} onClick={() => setStep(step + 1)}>Continuar <ArrowRight className="size-4" /></Button>
                     ) : (
-                        <Button icon={Send} loading={busy} onClick={submit}>{needsPay ? 'Enviar' : 'Enviar solicitud'}</Button>
+                        <Button icon={Send} loading={busy} onClick={submit}>{needsPay ? 'Enviar y generar ticket' : 'Enviar solicitud'}</Button>
                     )}
                 </div>
             </Card>

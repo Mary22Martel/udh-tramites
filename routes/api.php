@@ -47,7 +47,8 @@ Route::middleware(['auth', 'expire.payments'])->group(function () {
     Route::get('/submissions/{submission}', [SubmissionController::class, 'show']);
     Route::post('/submissions/{submission}/approve', [SubmissionController::class, 'approve']);
     Route::post('/submissions/{submission}/observe', [SubmissionController::class, 'observe']);
-    Route::post('/submissions/{submission}/reject', [SubmissionController::class, 'reject']);
+    Route::post('/submissions/{submission}/derive', [SubmissionController::class, 'derive']);
+    Route::post('/documents/{document}/send-mail', [SubmissionController::class, 'mailDocument'])->middleware('throttle:20,1');
     Route::post('/submissions/{submission}/correct', [SubmissionController::class, 'correct']);
     Route::get('/documents/{document}/download', [SubmissionController::class, 'download']);
 

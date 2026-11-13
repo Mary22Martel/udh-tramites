@@ -88,6 +88,33 @@ class WorkflowService
         }
     }
 
+    /**
+     * Arranca el plazo del área actual: días hábiles configurados en el paso (3 por defecto).
+     * Se llama cada vez que la solicitud llega a un área (al pagar, al avanzar, al subsanar o al ser derivada).
+     */
+    public function startStepClock(Submission $s): void
+    {
+        $step = $this->currentStep($s);
+        if (! $step || $step->area === 'ESTUDIANTE') {
+            $s->step_started_at = null;
+            $s->step_due_at = null;
+
+            return;
+        }
+        $s->step_started_at = now();
+        $s->step_due_at = BusinessDays::add(now(), max(1, (int) ($step->days ?: ProcedureStep::DEFAULT_DAYS)));
+    }
+
+    /** Área (código) que atiende un usuario del personal: PROGRAMA_ACADEMICO, FACULTAD, MATRICULA... */
+    public function userArea(User $user): ?string
+    {
+        return match (true) {
+            $user->role === 'PROGRAMA_ACADEMICO' => 'PROGRAMA_ACADEMICO',
+            $user->role === 'FACULTAD' => 'FACULTAD',
+            default => $user->area?->code,
+        };
+    }
+
     // ------------------------------------------------------------------
     // Catálogo
     // ------------------------------------------------------------------
@@ -353,9 +380,9 @@ class WorkflowService
      * Confirma el pago de un ticket (lo llama la pasarela o el simulador) y hace avanzar la solicitud.
      * Es idempotente: si el ticket ya estaba pagado no hace nada.
      */
-    public function markPaid(Payment $payment, string $method, ?string $reference, string $transactionCode, string $gateway, ?string $gatewayChargeId = null): Submission
+    public function markPaid(Payment $payment, string $method, ?string $reference, string $transactionCode, string $gateway, ?string $gatewayChargeId = null, ?array $card = null): Submission
     {
-        return DB::transaction(function () use ($payment, $method, $reference, $transactionCode, $gateway, $gatewayChargeId) {
+        return DB::transaction(function () use ($payment, $method, $reference, $transactionCode, $gateway, $gatewayChargeId, $card) {
             $payment = Payment::lockForUpdate()->find($payment->id);
             $s = $payment->submission()->with('procedure.steps')->first();
                 if ($payment->status === 'PAGADO') {
@@ -371,6 +398,7 @@ class WorkflowService
                 'gateway_charge_id' => $gatewayChargeId,
                 'failure_reason' => null,
                 'paid_at' => now(),
+                ...array_filter($card ?? [], fn ($v) => $v !== null && $v !== ''),
             ]);
 
             $s->fill([
@@ -393,7 +421,7 @@ class WorkflowService
                 'action' => 'PAGO_REALIZADO',
                 'comment' => $gateway === 'CAJA'
                     ? sprintf('Pago en Caja UDH confirmado: boleta %s, S/ %s.', $reference, number_format($payment->amount, 2))
-                    : sprintf('Pago confirmado: %s %s, S/ %s. Ticket %s, transacción %s.', $label, $reference, number_format($payment->amount, 2), $payment->code, $transactionCode),
+                    : sprintf('Pago confirmado: %s %s, S/ %s. Ticket %s, transacción %s.', $payment->fresh()->methodDetail() ?: $label, $method === 'TARJETA' ? '' : $reference, number_format($payment->amount, 2), $payment->code, $transactionCode),
             ]);
 
             if ($s->status === 'PENDIENTE_PAGO') {
@@ -423,6 +451,7 @@ class WorkflowService
             return;
         }
         $this->resolveAssignment($s);
+        $this->startStepClock($s);
 
         $next = $this->currentStep($s);
         $this->notify($student->id, 'Solicitud en proceso',
@@ -432,9 +461,10 @@ class WorkflowService
     /**
      * El área responsable aprueba su paso y la solicitud pasa al siguiente.
      *  - Pasos intermedios: el archivo es opcional (si se adjunta, el estudiante lo ve).
-     *  - Último paso: debe adjuntar el documento que se entrega al estudiante.
+     *    Se envía al correo del estudiante SOLO si el área lo pide ($sendMail).
+     *  - Último paso: debe adjuntar el documento que se entrega al estudiante (siempre se envía por correo).
      */
-    public function approve(Submission $s, User $actor, ?string $comment = null, UploadedFile|array|null $file = null): Submission
+    public function approve(Submission $s, User $actor, ?string $comment = null, UploadedFile|array|null $file = null, bool $sendMail = false): Submission
     {
         $this->guardActionable($s, $actor);
         $s->loadMissing(['procedure.steps', 'program', 'faculty']);
@@ -448,7 +478,7 @@ class WorkflowService
         }
 
         $doc = null;
-        $result = DB::transaction(function () use ($s, $actor, $comment, $file, $step, $steps, $isLast, $areaLabel, &$doc) {
+        $result = DB::transaction(function () use ($s, $actor, $comment, $file, $step, $steps, $isLast, $areaLabel, $sendMail, &$doc) {
             $doc = $file ? $this->attach($s, $file, $isLast ? 'DOCUMENTO_FINAL' : 'DOCUMENTO', $actor, $areaLabel) : null;
             $docName = $doc?->name;
 
@@ -458,14 +488,19 @@ class WorkflowService
             }
             $this->log($s, $step, $actor, $areaLabel, $action, $comment ?: "Aprobado por {$areaLabel}.", $docName);
 
+            $s->observation = null; // si había sido derivada, la nota ya se atendió
             if ($isLast) {
                 $this->finish($s, $actor, $steps->count(), $docName);
+                $s->step_started_at = null;
+                $s->step_due_at = null;
             } else {
                 $s->current_step_index++;
                 $this->resolveAssignment($s);
+                $this->startStepClock($s);
                 $next = $steps->get($s->current_step_index);
                 $this->notify($s->student_id, 'Avance de tu trámite',
-                    "Tu trámite {$s->code} pasó a ".$this->areaLabel($next->area, $s).'.'.($docName ? ' Se adjuntó un documento (también te lo enviamos por correo).' : ''), 'INFO', $s->id);
+                    "Tu trámite {$s->code} pasó a ".$this->areaLabel($next->area, $s).'.'
+                    .($docName ? ' Se adjuntó un documento'.($sendMail ? ' (también te lo enviamos por correo).' : '.') : ''), 'INFO', $s->id);
             }
 
             $s->save();
@@ -473,8 +508,9 @@ class WorkflowService
             return $s->fresh();
         });
 
-        // El documento subido también se envía al correo del estudiante, desde el correo del área
-        if ($doc?->path) {
+        // Último paso: el documento se envía siempre al correo del estudiante.
+        // Pasos intermedios: solo si el administrador dio ese permiso al paso Y el área marcó "Enviar al correo".
+        if ($doc?->path && ($isLast || ($sendMail && $step->can_email))) {
             $this->mailDocument($result, $doc, $step->area, $actor, $isLast);
         }
 
@@ -498,12 +534,12 @@ class WorkflowService
      *  - Si el área conectó su correo: sale DESDE su cuenta (queda en sus "Enviados").
      *  - Si no: sale con la cuenta general y el área recibe una copia oculta.
      */
-    public function mailDocument(Submission $s, SubmissionDocument $doc, ?string $area, User $actor, bool $isFinal): void
+    public function mailDocument(Submission $s, SubmissionDocument $doc, ?string $area, User $actor, bool $isFinal): bool
     {
         $s->loadMissing(['student', 'program', 'faculty']);
         $to = $s->student?->email;
         if (! $to) {
-            return;
+            return false;
         }
         $accounts = app(MailAccounts::class);
         $sender = $accounts->senderFor($area, $s);
@@ -526,8 +562,12 @@ class WorkflowService
             }
             SubmissionEventLogger::write($s, $this->currentStep($s)?->step_number ?? 1, 'Envío por correo', $actor, $areaName, 'CORREO_ENVIADO',
                 "Documento «{$doc->name}» enviado al correo {$to} {$how}.");
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning("No se pudo enviar el correo del expediente {$s->code}: ".$e->getMessage());
+
+            return false;
         }
     }
 
@@ -587,6 +627,7 @@ class WorkflowService
         $s->status = 'EN_PROCESO';
         $s->observation = null;
         $this->resolveAssignment($s);
+        $this->startStepClock($s);
         $s->save();
 
         $step = $this->currentStep($s);
@@ -596,28 +637,105 @@ class WorkflowService
         return $s->fresh();
     }
 
-    /** Rechazo / denegación definitiva. */
-    public function reject(Submission $s, User $actor, string $reason): Submission
+    /** Áreas anteriores a las que se puede devolver la solicitud (no incluye al estudiante). */
+    public function returnTargets(Submission $s): array
+    {
+        $s->loadMissing(['procedure.steps', 'program', 'faculty']);
+        $targets = [];
+        foreach ($s->procedure->steps->values() as $i => $step) {
+            if ($i >= $s->current_step_index) {
+                break;
+            }
+            if ($step->area === 'ESTUDIANTE') {
+                continue;
+            }
+            $targets[] = ['index' => $i, 'step_number' => $step->step_number, 'name' => $step->name, 'area' => $step->area, 'label' => $this->areaLabel($step->area, $s)];
+        }
+
+        return $targets;
+    }
+
+    /**
+     * Derivar: el área devuelve la solicitud a un área ANTERIOR del flujo, con sus observaciones,
+     * para que corrija lo que corresponda. Desde ahí el flujo continúa normalmente.
+     * (Para pedirle algo al estudiante se usa "Observar").
+     */
+    public function derive(Submission $s, User $actor, int $targetIndex, string $reason, ?string $detail = null, UploadedFile|array|null $file = null): Submission
     {
         $this->guardActionable($s, $actor);
         $s->loadMissing(['procedure.steps', 'program', 'faculty']);
         $step = $this->currentStep($s);
-        if (! $step->can_reject && ! $actor->isAdmin()) {
-            throw ValidationException::withMessages(['action' => 'Este paso no permite denegar la solicitud.']);
+        if (! $step->can_return && ! $actor->isAdmin()) {
+            throw ValidationException::withMessages(['action' => 'Este paso no permite devolver la solicitud a otra área.']);
         }
-        $areaLabel = $this->areaLabel($step->area, $s);
+        $target = collect($this->returnTargets($s))->firstWhere('index', $targetIndex);
+        if (! $target) {
+            throw ValidationException::withMessages(['target' => 'Elige un área anterior del flujo.']);
+        }
+        $fromLabel = $this->areaLabel($step->area, $s);
 
-        $s->status = 'RECHAZADO';
-        $s->current_area = null;
-        $s->channel_id = null;
-        $s->finished_at = now();
-        $s->save();
+        return DB::transaction(function () use ($s, $actor, $step, $target, $reason, $detail, $file, $fromLabel) {
+            $docName = $file ? $this->attach($s, $file, 'DOCUMENTO', $actor, $fromLabel)->name : null;
+            $this->log($s, $step, $actor, $fromLabel, 'DERIVADO',
+                "Devuelto a {$target['label']}: {$reason}.".($detail ? " Detalle: {$detail}" : ''), $docName);
 
-        $this->log($s, $step, $actor, $areaLabel, 'RECHAZADO', "SOLICITUD DENEGADA: {$reason}.");
-        $this->notify($s->student_id, 'Solicitud denegada',
-            "Tu solicitud {$s->code} fue denegada por {$areaLabel}. Motivo: {$reason}", 'ALERT', $s->id);
+            $s->current_step_index = $target['index'];
+            $s->status = 'EN_PROCESO';
+            $s->observation = [
+                'type' => 'DERIVADO',
+                'reason' => $reason,
+                'detail' => $detail,
+                'area' => $fromLabel,
+                'to' => $target['label'],
+                'by' => $actor->name,
+                'at' => now()->toIso8601String(),
+            ];
+            $this->resolveAssignment($s);
+            $this->startStepClock($s);
+            $s->save();
 
-        return $s->fresh();
+            $this->notify($s->student_id, 'Tu trámite volvió a una etapa anterior',
+                "{$fromLabel} devolvió tu trámite {$s->code} a {$target['label']} para una corrección. No tienes que hacer nada: seguirá su curso.", 'INFO', $s->id);
+
+            return $s->fresh();
+        });
+    }
+
+    /**
+     * ¿El paso donde se subió este documento tiene permiso para enviarlo por correo?
+     * El documento final siempre se puede (re)enviar.
+     */
+    public function canEmailDocument(Submission $s, SubmissionDocument $doc): bool
+    {
+        if ($doc->type === 'DOCUMENTO_FINAL') {
+            return true;
+        }
+        $steps = $s->loadMissing('procedure.steps')->procedure?->steps ?? collect();
+        if ($doc->step_number) {
+            return (bool) $steps->firstWhere('step_number', $doc->step_number)?->can_email;
+        }
+        // Documentos antiguos sin paso guardado: se busca el paso del área de quien lo subió
+        $area = ($u = User::find($doc->uploaded_by)) ? $this->userArea($u) : null;
+
+        return (bool) $steps->first(fn ($st) => $st->area === $area && $st->can_email);
+    }
+
+    /** Envía al estudiante, por correo, un documento que subió un área (botón «Enviar al correo»). */
+    public function sendDocumentByMail(Submission $s, SubmissionDocument $doc, User $actor): void
+    {
+        if (! $doc->path || ! in_array($doc->type, ['DOCUMENTO', 'DOCUMENTO_FINAL'], true)) {
+            throw ValidationException::withMessages(['document' => 'Solo se pueden enviar los documentos que subió un área.']);
+        }
+        if (! $actor->isAdmin() && $doc->uploaded_by !== $actor->id) {
+            throw ValidationException::withMessages(['document' => 'Solo quien subió el documento puede enviarlo por correo.']);
+        }
+        if (! $this->canEmailDocument($s, $doc)) {
+            throw ValidationException::withMessages(['document' => 'Este paso del trámite no tiene permiso para enviar documentos por correo. El administrador puede activarlo en la configuración del trámite.']);
+        }
+        $area = $this->userArea($actor) ?? $this->currentStep($s->loadMissing('procedure.steps'))?->area;
+        if (! $this->mailDocument($s, $doc, $area, $actor, $doc->type === 'DOCUMENTO_FINAL')) {
+            throw ValidationException::withMessages(['document' => 'No se pudo enviar el correo. Revisa la configuración de correo e inténtalo de nuevo.']);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -654,6 +772,7 @@ class WorkflowService
                 'uploaded_by' => $by->id,
                 'uploaded_by_name' => $by->name,
                 'official_number' => $officialNumber,
+                'step_number' => $this->currentStep($s)?->step_number,
             ]);
         }
 

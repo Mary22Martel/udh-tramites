@@ -134,7 +134,7 @@ export default function Procedures() {
                                     {p.target_scope === 'FACULTAD' && p.faculties.map((f) => <Badge key={f.id} tone="gold">{f.code}</Badge>)}
                                 </div>
                                 <p className="mt-1 truncate text-xs tracking-wide text-muted uppercase">
-                                    {p.code} · {p.category} · {p.cost > 0 ? fmtMoney(p.cost) : 'Gratuito'} · {p.estimated_days} días · {p.steps.length} pasos · {p.requirements.length} requisitos · v{p.version} · {p.submissions_count} solicitudes
+                                    {p.code} · {p.category} · {p.cost > 0 ? fmtMoney(p.cost) : 'Gratuito'} · {p.steps.length} pasos · {p.requirements.length} requisitos · v{p.version} · {p.submissions_count} solicitudes
                                 </p>
                                 <p className="mt-1.5 hidden truncate text-xs text-muted md:block">{p.steps.map((s) => s.area_label).join('  →  ')}</p>
                             </div>

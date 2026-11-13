@@ -96,9 +96,14 @@ class SubmissionController extends Controller
             if (! $file) {
                 continue;
             }
-            $ext = '.'.strtolower($file->getClientOriginalExtension());
             $allowed = array_map('strtolower', $req->file_types ?? []);
-            if ($allowed && ! in_array($ext, $allowed, true) && ! ($ext === '.jpeg' && in_array('.jpg', $allowed, true))) {
+            $norm = fn (?string $e) => $e ? '.'.str_replace('jpeg', 'jpg', strtolower(ltrim($e, '.'))) : null;
+            // Extensión del nombre; si no tiene o no coincide (fotos del celular), se usa el tipo real del archivo
+            $ext = $norm($file->getClientOriginalExtension());
+            if (! $ext || ($allowed && ! in_array($ext, $allowed, true))) {
+                $ext = $norm($file->guessExtension()) ?? $ext;
+            }
+            if ($allowed && ! in_array($ext, $allowed, true) && ! ($ext === '.jpg' && in_array('.jpeg', $allowed, true))) {
                 throw ValidationException::withMessages(["files.{$req->id}" => "{$req->name}: formato no permitido (".implode(', ', $allowed).').']);
             }
             if ($file->getSize() > $req->max_size_mb * 1024 * 1024) {
@@ -118,8 +123,9 @@ class SubmissionController extends Controller
         $data = $request->validate([
             'comment' => ['nullable', 'string', 'max:2000'],
             'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx,zip', 'max:20480'],
+            'send_mail' => ['nullable', 'boolean'],
         ], ['file.mimes' => 'Formatos permitidos: PDF, imagen, Word, Excel o ZIP.']);
-        $s = $this->wf->approve($submission, $request->user(), $data['comment'] ?? null, $request->file('file'));
+        $s = $this->wf->approve($submission, $request->user(), $data['comment'] ?? null, $request->file('file'), $request->boolean('send_mail'));
 
         return ['data' => Presenter::submissionDetail($s->load(self::WITH), $request->user())];
     }
@@ -135,12 +141,28 @@ class SubmissionController extends Controller
         return ['data' => Presenter::submissionDetail($s->load(self::WITH), $request->user())];
     }
 
-    public function reject(Request $request, Submission $submission)
+    /** Derivar: devolver la solicitud a un área anterior del flujo. */
+    public function derive(Request $request, Submission $submission)
     {
-        $data = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:2000']]);
-        $s = $this->wf->reject($submission, $request->user(), $data['reason']);
+        $data = $request->validate([
+            'target' => ['required', 'integer', 'min:0'],
+            'reason' => ['required', 'string', 'min:5', 'max:255'],
+            'detail' => ['nullable', 'string', 'max:2000'],
+            'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx,zip', 'max:20480'],
+        ], ['target.required' => 'Elige a qué área devolverla.', 'reason.required' => 'Escribe el motivo.', 'reason.min' => 'Explica un poco más el motivo.']);
+        $s = $this->wf->derive($submission, $request->user(), (int) $data['target'], $data['reason'], $data['detail'] ?? null, $request->file('file'));
 
         return ['data' => Presenter::submissionDetail($s->load(self::WITH), $request->user())];
+    }
+
+    /** Botón «Enviar al correo del estudiante» de un documento que subió el área. */
+    public function mailDocument(Request $request, SubmissionDocument $document)
+    {
+        $s = $document->submission;
+        abort_unless($this->wf->canView($request->user(), $s), 403);
+        $this->wf->sendDocumentByMail($s, $document, $request->user());
+
+        return ['ok' => true, 'message' => "Documento enviado al correo {$s->student?->email}.", 'data' => Presenter::submissionDetail($s->fresh()->load(self::WITH), $request->user())];
     }
 
     public function correct(Request $request, Submission $submission)

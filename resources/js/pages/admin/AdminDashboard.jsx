@@ -41,15 +41,15 @@ export default function AdminDashboard() {
             />
             <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
                 <StatCard label="Solicitudes" value={fmtNumber(k.total)} icon={FileStack} tone="navy" hint={`${k.students} estudiantes · ${k.programs} carreras`} />
-                <StatCard label="En proceso" value={fmtNumber(k.en_proceso)} icon={Clock} tone="blue" hint={`${k.overdue} fuera del plazo estimado`} />
+                <StatCard label="En proceso" value={fmtNumber(k.en_proceso)} icon={Clock} tone="blue" hint={`${k.overdue} fuera del plazo de su área`} />
                 <StatCard label="Observadas" value={fmtNumber(k.observado)} icon={AlertTriangle} tone="amber" hint="Esperan subsanación del estudiante" />
-                <StatCard label="Finalizadas" value={fmtNumber(k.finalizado)} icon={CheckCircle2} tone="teal" hint={`${k.rechazado} denegadas`} />
+                <StatCard label="Finalizadas" value={fmtNumber(k.finalizado)} icon={CheckCircle2} tone="teal" hint="Documento entregado" />
             </div>
             <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
                 <StatCard label="Tiempo promedio" value={`${k.avg_days} d`} icon={Timer} tone="gold" hint="Desde registro hasta emisión" />
                 <StatCard label="Recaudado en línea" value={fmtMoney(k.revenue)} icon={Wallet} tone="teal" hint="Pagos confirmados por la pasarela" />
                 <StatCard label="Trámites activos" value={k.procedures} icon={GraduationCap} tone="navy" hint="En el catálogo (TUPA)" />
-                <StatCard label="Fuera de plazo" value={k.overdue} icon={AlarmClock} tone="red" hint="Superan los días estimados" />
+                <StatCard label="Fuera de plazo" value={k.overdue} icon={AlarmClock} tone="red" hint="El área superó sus días hábiles" />
             </div>
 
             <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-[1.6fr_1fr]">

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Clock, FileCheck2, Layers, Paperclip, Sparkles, Wallet } from 'lucide-react';
+import { BookOpen, FileCheck2, Layers, Paperclip, Sparkles, Wallet } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Badge, Button, Card, Callout, EmptyState, Modal, PageHeader, SearchBar, Select, Spinner } from '../components/ui';
@@ -23,10 +23,9 @@ export function ProcedureInfo({ p, onClose, onApply }) {
             {p && (
                 <div className="space-y-5">
                     <p className="text-[15px] leading-relaxed text-ink">{p.description}</p>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-line p-3"><p className="text-xs text-muted">Costo</p><p className="text-lg font-extrabold text-ink">{p.cost > 0 ? fmtMoney(p.cost) : 'Gratuito'}</p></div>
-                        <div className="rounded-xl border border-line p-3"><p className="text-xs text-muted">Plazo estimado</p><p className="text-lg font-extrabold text-ink">{p.estimated_days} días</p></div>
-                        <div className="rounded-xl border border-line p-3"><p className="text-xs text-muted">Etapas</p><p className="text-lg font-extrabold text-ink">{p.steps.length}</p></div>
+                        <div className="rounded-xl border border-line p-3"><p className="text-xs text-muted">Áreas que lo atienden</p><p className="text-lg font-extrabold text-ink">{p.steps.length - 1}</p></div>
                     </div>
                     <div>
                         <p className="kicker mb-3">Requisitos</p>
@@ -49,11 +48,15 @@ export function ProcedureInfo({ p, onClose, onApply }) {
                         </ul>
                     </div>
                     <div>
-                        <p className="kicker mb-3">Recorrido</p>
+                        <p className="kicker mb-1">Recorrido</p>
+                        <p className="mb-3 text-xs text-muted">Cada área tiene sus días hábiles para atender tu solicitud.</p>
                         <ol className="flex flex-wrap items-center gap-2 text-sm">
                             {p.steps.map((s, i) => (
                                 <li key={s.id} className="flex items-center gap-2">
-                                    <span className="rounded-lg bg-surface-2 px-2.5 py-1 font-semibold text-ink ring-1 ring-line">{i === 0 ? 'Tu solicitud' : s.area_label}</span>
+                                    <span className="rounded-lg bg-surface-2 px-2.5 py-1 font-semibold text-ink ring-1 ring-line">
+                                        {i === 0 ? 'Tu solicitud' : s.area_label}
+                                        {i > 0 && <span className="ml-1.5 text-xs font-medium text-muted">· {s.days} {s.days === 1 ? 'día' : 'días'}</span>}
+                                    </span>
                                     {i < p.steps.length - 1 && <span className="text-muted">→</span>}
                                 </li>
                             ))}
@@ -87,6 +90,7 @@ export default function Catalog() {
     return (
         <div>
             <PageHeader
+                kicker="Texto Único de Procedimientos Administrativos"
                 title="Catálogo de trámites"
                 description={isStudent ? `Trámites disponibles para ${user.program?.name}.` : 'Consulta los trámites vigentes, sus requisitos, costos y flujo de atención.'}
             />
@@ -112,7 +116,6 @@ export default function Catalog() {
                             <p className="mt-2 line-clamp-2 flex-1 text-sm text-muted">{p.description}</p>
                             <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-muted">
                                 <span className="flex items-center gap-1"><Wallet className="size-3.5" />{p.cost > 0 ? fmtMoney(p.cost) : 'Gratuito'}</span>
-                                <span className="flex items-center gap-1"><Clock className="size-3.5" />{p.estimated_days} días</span>
                                 <span className="flex items-center gap-1"><Layers className="size-3.5" />{p.steps.length} etapas</span>
                                 <span className="flex items-center gap-1"><FileCheck2 className="size-3.5" />{p.requirements.length} requisitos</span>
                             </div>

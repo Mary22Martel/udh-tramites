@@ -1,6 +1,6 @@
-import { AlertTriangle, ChevronRight, FileText } from 'lucide-react';
-import { Card, EmptyState, ProgressBar, StatusBadge } from './ui';
-import { cx, dayMonth, fmtDate, timeAgo } from '../lib/format';
+import { AlertTriangle, ChevronRight, Clock, CornerUpLeft, FileText } from 'lucide-react';
+import { Badge, Card, EmptyState, ProgressBar, StatusBadge } from './ui';
+import { cx, dayMonth, fmtDate, stepDue, timeAgo } from '../lib/format';
 
 /** Lista de solicitudes con el estilo del panel (fecha en bloque + título + detalle). */
 export default function SubmissionList({ items, onOpen, showStudent = true, emptyTitle = 'No hay solicitudes', emptyDescription, emptyAction }) {
@@ -16,6 +16,8 @@ export default function SubmissionList({ items, onOpen, showStudent = true, empt
             {items.map((s) => {
                 const d = dayMonth(s.created_at);
                 const tone = s.status === 'OBSERVADO' ? 'amber' : s.status === 'RECHAZADO' ? 'red' : 'teal';
+                const due = stepDue(s.step_due);
+                const derived = s.status === 'EN_PROCESO' && s.observation?.type === 'DERIVADO';
                 return (
                     <button key={s.id} onClick={() => onOpen(s)} className="group flex w-full items-center gap-4 px-4 py-4 text-left transition hover:bg-surface-2 md:px-6">
                         <div className="hidden size-[60px] shrink-0 flex-col items-center justify-center rounded-xl bg-sand-udh/35 text-navy-udh sm:flex dark:bg-sand-udh/10 dark:text-sand-udh">
@@ -27,6 +29,8 @@ export default function SubmissionList({ items, onOpen, showStudent = true, empt
                                 <span className="min-w-0 truncate font-extrabold tracking-tight text-ink">{showStudent ? s.student?.name : s.procedure_name}</span>
                                 <StatusBadge status={s.status} />
                                 {s.status === 'OBSERVADO' && <AlertTriangle className="size-4 text-amber-500" />}
+                                {derived && <Badge tone="gold"><CornerUpLeft className="size-3" /> Devuelto</Badge>}
+                                {due && <Badge tone={due.tone}><Clock className="size-3" /> {due.short}</Badge>}
                             </div>
                             {showStudent && <p className="mt-0.5 truncate text-sm font-medium text-ink/90">{s.procedure_name}</p>}
                             <p className="mt-1 truncate text-xs text-muted">

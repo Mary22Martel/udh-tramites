@@ -16,6 +16,9 @@ use RuntimeException;
  */
 class CulqiGateway
 {
+    /** Monto mínimo que Culqi acepta para Yape y billeteras móviles (S/ 6 a S/ 500). */
+    public const WALLET_MIN = 6.0;
+
     protected function http()
     {
         $secret = config('services.culqi.secret_key');
@@ -53,7 +56,9 @@ class CulqiGateway
             return ['ok' => false, 'message' => 'Tu banco pidió una autenticación adicional (3DS) que no está habilitada. Prueba con otra tarjeta o con Yape.'];
         }
 
-        $card = $json['source']['card_number'] ?? $json['source']['source']['card_number'] ?? null;
+        $src = $json['source'] ?? [];
+        $card = $src['card_number'] ?? $src['source']['card_number'] ?? null;
+        $iin = $src['iin'] ?? $src['source']['iin'] ?? [];
         $isYape = str_starts_with($tokenId, 'ype') || strtolower($methodHint ?? '') === 'yape';
 
         return [
@@ -61,6 +66,13 @@ class CulqiGateway
             'charge_id' => $json['id'] ?? null,
             'reference' => $card ? '•••• '.substr($card, -4) : ($isYape ? 'Yape' : null),
             'method' => $isYape ? 'YAPE' : 'TARJETA',
+            // Culqi informa el banco emisor y la marca de la tarjeta (iin): así Tesorería ve "Tarjeta BCP", "Tarjeta Interbank"...
+            'card' => $isYape ? null : [
+                'card_brand' => $iin['card_brand'] ?? null,
+                'card_issuer' => Payment::shortBank($iin['issuer']['name'] ?? null),
+                'card_type' => isset($iin['card_type']) ? Str::lower($iin['card_type']) : null,
+                'card_last4' => $card ? substr($card, -4) : ($src['last_four'] ?? null),
+            ],
         ];
     }
 

@@ -33,6 +33,7 @@ class PaymentController extends Controller
             'public_key' => $driver === 'culqi' ? config('services.culqi.public_key') : null,
             'orders' => $driver === 'culqi' && config('services.culqi.orders'),
             'methods' => Payment::METHODS,
+            'wallet_min' => CulqiGateway::WALLET_MIN,
             'caja_simulated' => (bool) config('services.caja.simulate'),
             'days_to_pay' => Payment::DAYS_TO_PAY,
         ];
@@ -105,7 +106,8 @@ class PaymentController extends Controller
             throw ValidationException::withMessages(['payment' => "Pago rechazado: {$failure}"]);
         }
 
-        $s = $this->wf->markPaid($payment, $data['method'], $reference, $this->txCode(), 'SIMULADO');
+        $card = $data['method'] === 'TARJETA' ? Payment::simulatedCard($data['card_number']) : null;
+        $s = $this->wf->markPaid($payment, $data['method'], $reference, $this->txCode(), 'SIMULADO', null, $card);
 
         return $this->paidResponse($payment, $s);
     }
@@ -148,7 +150,7 @@ class PaymentController extends Controller
             throw ValidationException::withMessages(['payment' => 'Pago rechazado: '.$r['message']]);
         }
 
-        $s = $this->wf->markPaid($payment, $r['method'], $r['reference'], $r['charge_id'] ?? $this->txCode(), 'CULQI', $r['charge_id']);
+        $s = $this->wf->markPaid($payment, $r['method'], $r['reference'], $r['charge_id'] ?? $this->txCode(), 'CULQI', $r['charge_id'], $r['card'] ?? null);
 
         return $this->paidResponse($payment, $s);
     }
@@ -157,6 +159,9 @@ class PaymentController extends Controller
     public function culqiOrder(Request $request, Payment $payment, CulqiGateway $culqi)
     {
         $this->guardPayable($request, $payment);
+        if ($payment->amount < CulqiGateway::WALLET_MIN) {
+            return ['order_id' => null, 'message' => 'Culqi acepta Yape y billeteras solo desde S/ '.number_format(CulqiGateway::WALLET_MIN, 2).'.'];
+        }
         try {
             return ['order_id' => $culqi->createOrder($payment)];
         } catch (\Throwable $e) {
@@ -267,8 +272,18 @@ class PaymentController extends Controller
             'pending_total' => (float) Payment::where('status', 'PENDIENTE')->sum('amount'),
             'filtered_total' => (float) (clone $q)->where('status', 'PAGADO')->sum('amount'),
         ];
-        $byMethod = (clone $paidBase)->selectRaw('method, count(*) as n, sum(amount) as total')->groupBy('method')->get()
-            ->map(fn ($r) => ['method' => $r->method, 'label' => Payment::METHODS[$r->method] ?? $r->method, 'n' => (int) $r->n, 'total' => (float) $r->total]);
+        // Por medio de pago; las tarjetas se separan por banco emisor (BCP, Interbank, Banco de la Nación...)
+        $order = array_flip(array_keys(Payment::METHODS));
+        $byMethod = (clone $paidBase)->selectRaw('method, card_issuer, count(*) as n, sum(amount) as total')->groupBy('method', 'card_issuer')->get()
+            ->map(fn ($r) => [
+                'method' => $r->method,
+                'bank' => $r->method === 'TARJETA' ? ($r->card_issuer ?: 'OTRO') : null,
+                'label' => $r->method === 'TARJETA' ? 'Tarjeta '.($r->card_issuer ?: 'otro banco') : (Payment::METHODS[$r->method] ?? $r->method),
+                'n' => (int) $r->n,
+                'total' => (float) $r->total,
+            ])
+            ->sortBy([fn ($a, $b) => ($order[$a['method']] ?? 99) <=> ($order[$b['method']] ?? 99), fn ($a, $b) => $b['n'] <=> $a['n']])
+            ->values();
 
         $page = $q->with(['user:id,name,student_code,email', 'submission:id,code,procedure_name,procedure_category,status,program_id', 'submission.program:id,code,name'])
             ->orderByRaw('COALESCE(paid_at, created_at) DESC')->paginate(20);
@@ -286,13 +301,13 @@ class PaymentController extends Controller
         $this->guardTreasury($request);
         $out = fopen('php://temp', 'r+');
         fwrite($out, "\xEF\xBB\xBF");
-        fputcsv($out, ['Ticket', 'Estado', 'Fecha de pago', 'Estudiante', 'Código', 'Carrera', 'Expediente', 'Trámite', 'Medio', 'Referencia', 'Transacción', 'Pasarela', 'Monto (S/)'], ';', '"', '\\');
+        fputcsv($out, ['Ticket', 'Estado', 'Fecha de pago', 'Estudiante', 'Código', 'Carrera', 'Expediente', 'Trámite', 'Medio', 'Banco', 'Marca', 'Referencia', 'Transacción', 'Pasarela', 'Monto (S/)'], ';', '"', '\\');
         $this->filtered($request)->with(['user', 'submission.program'])->orderBy('id')->chunk(500, function ($rows) use ($out) {
             foreach ($rows as $p) {
                 fputcsv($out, [
                     $p->code, Payment::STATUSES[$p->status] ?? $p->status, $p->paid_at?->format('d/m/Y H:i'), $p->user?->name, $p->user?->student_code,
                     $p->submission?->program?->name, $p->submission?->code, $p->submission?->procedure_name,
-                    Payment::METHODS[$p->method] ?? $p->method, $p->reference, $p->transaction_code, $p->gateway, number_format($p->amount, 2, '.', ''),
+                    Payment::METHODS[$p->method] ?? $p->method, $p->card_issuer, $p->card_brand, $p->reference, $p->transaction_code, $p->gateway, number_format($p->amount, 2, '.', ''),
                 ], ';', '"', '\\');
             }
         });
@@ -309,6 +324,7 @@ class PaymentController extends Controller
         return Payment::query()
             ->when($r->filled('status') && $r->status !== 'TODOS', fn ($q) => $q->where('status', $r->status))
             ->when($r->filled('method'), fn ($q) => $q->where('method', $r->method))
+            ->when($r->filled('bank'), fn ($q) => $r->bank === 'OTRO' ? $q->whereNull('card_issuer') : $q->where('card_issuer', $r->bank))
             ->when($r->filled('program_id'), fn ($q) => $q->whereHas('submission', fn ($s) => $s->where('program_id', $r->program_id)))
             ->when($r->filled('from'), fn ($q) => $q->whereDate('paid_at', '>=', $r->from))
             ->when($r->filled('to'), fn ($q) => $q->whereDate('paid_at', '<=', $r->to))

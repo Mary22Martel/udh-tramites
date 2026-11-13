@@ -7,13 +7,13 @@ import { useToast } from '../../context/ToastContext';
 import { Badge, Button, Callout, Card, Field, IconButton, Input, PageHeader, Select, Spinner, Textarea, Toggle } from '../../components/ui';
 
 const EMPTY = {
-    name: '', code: '', description: '', category: 'Constancias y Certificados', estimated_days: 3, cost: 5, requires_payment: true,
+    name: '', code: '', description: '', category: 'Constancias y Certificados', cost: 5, requires_payment: true,
     payment_concept: '', target_scope: 'TODOS', program_ids: [], faculty_ids: [], is_active: true,
     requirements: [],
     steps: [
-        { name: 'Solicitud del estudiante', description: 'El estudiante registra su solicitud y su justificación.', area: 'ESTUDIANTE', action_required: 'SOLICITUD', document_requirement: null, can_observe: false, can_reject: false },
-        { name: 'Revisión del programa', description: 'El programa académico revisa y aprueba.', area: 'PROGRAMA_ACADEMICO', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_reject: true },
-        { name: 'Matrícula · entrega del documento', description: 'Matrícula aprueba y sube el documento final para el estudiante.', area: 'MATRICULA', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_reject: true },
+        { name: 'Solicitud del estudiante', description: 'El estudiante registra su solicitud y su justificación.', area: 'ESTUDIANTE', action_required: 'SOLICITUD', document_requirement: null, can_observe: false, can_return: false, days: 0 },
+        { name: 'Revisión del programa', description: 'El programa académico revisa y aprueba.', area: 'PROGRAMA_ACADEMICO', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_return: true, days: 3 },
+        { name: 'Matrícula · entrega del documento', description: 'Matrícula aprueba y sube el documento final para el estudiante.', area: 'MATRICULA', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_return: true, days: 3 },
     ],
 };
 const FILE_TYPES = ['.pdf', '.jpg', '.png', '.docx'];
@@ -46,8 +46,13 @@ export default function ProcedureEditor() {
     const save = async () => {
         setBusy(true);
         try {
-            const steps = form.steps.map((st, i) => ({ ...st, document_requirement: null, action_required: i === 0 ? 'SOLICITUD' : st.area === 'TESORERIA' ? 'VERIFICAR_PAGO' : 'APROBAR' }));
-            const payload = { ...form, steps, cost: Number(form.cost), estimated_days: Number(form.estimated_days), code: form.code || null };
+            const steps = form.steps.map((st, i) => ({
+                ...st,
+                document_requirement: null,
+                action_required: i === 0 ? 'SOLICITUD' : st.area === 'TESORERIA' ? 'VERIFICAR_PAGO' : 'APROBAR',
+                days: i === 0 ? null : Number(st.days) || 3, // el paso del estudiante no tiene plazo
+            }));
+            const payload = { ...form, steps, cost: Number(form.cost), code: form.code || null };
             const { data } = id ? await api.put(`/procedures/${id}`, payload) : await api.post('/procedures', payload);
             toast.success(id ? `Trámite actualizado (versión ${data.data.version}).` : 'Trámite creado.');
             navigate('/admin/tramites');
@@ -74,8 +79,7 @@ export default function ProcedureEditor() {
                         <Select value={form.category} onChange={(e) => set('category', e.target.value)}>{meta.categories.map((c) => <option key={c}>{c}</option>)}</Select>
                     </Field>
                     <Field label="Costo (S/)" className="md:col-span-1"><Input type="number" min="0" step="0.5" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value, requires_payment: Number(e.target.value) > 0 })} /></Field>
-                    <Field label="Días estimados" className="md:col-span-1"><Input type="number" min="1" value={form.estimated_days} onChange={(e) => set('estimated_days', e.target.value)} /></Field>
-                    <Field label="Concepto de pago" className="md:col-span-2"><Input value={form.payment_concept} onChange={(e) => set('payment_concept', e.target.value)} disabled={!form.requires_payment} /></Field>
+                    <Field label="Concepto de pago" className="md:col-span-3"><Input value={form.payment_concept} onChange={(e) => set('payment_concept', e.target.value)} disabled={!form.requires_payment} /></Field>
                     <Field label="¿Quiénes pueden solicitarlo?" className="md:col-span-2">
                         <Select value={form.target_scope} onChange={(e) => set('target_scope', e.target.value)}>
                             <option value="TODOS">Todas las carreras</option>
@@ -133,9 +137,9 @@ export default function ProcedureEditor() {
             <Card className="mb-5 p-6">
                 <div className="mb-4 flex items-center justify-between">
                     <p className="kicker flex items-center gap-2"><Workflow className="size-4" /> Flujo de atención ({form.steps.length} pasos)</p>
-                    <Button size="sm" variant="secondary" icon={Plus} onClick={() => set('steps', [...form.steps, { name: '', description: '', area: 'MATRICULA', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_reject: true }])}>Agregar paso</Button>
+                    <Button size="sm" variant="secondary" icon={Plus} onClick={() => set('steps', [...form.steps, { name: '', description: '', area: 'MATRICULA', action_required: 'APROBAR', document_requirement: null, can_observe: true, can_return: true, days: 3 }])}>Agregar paso</Button>
                 </div>
-                <Callout className="mb-4">El <b>paso 1</b> es la solicitud del estudiante. Cada área siguiente <b>revisa y aprueba</b> (puede adjuntar un archivo opcional que verá el estudiante). El <b>último paso</b> sube el documento final que recibe el estudiante. «Programa académico» y «Facultad» se asignan solos según la carrera del estudiante. Agrega <b>Tesorería</b> solo si este trámite exige que apruebe el pago.</Callout>
+                <Callout className="mb-4">El <b>paso 1</b> es la solicitud del estudiante. Cada área siguiente <b>revisa y aprueba</b> (puede adjuntar un archivo opcional que verá el estudiante). El <b>último paso</b> sube el documento final que recibe el estudiante y se le envía por correo automáticamente; en los demás pasos, activa «Puede enviar documentos al correo» solo en las áreas que deban hacerlo. Cada área tiene su <b>plazo en días hábiles</b> (3 por defecto) que empieza a contar cuando la solicitud llega a ella. «Programa académico» y «Facultad» se asignan solos según la carrera del estudiante. Agrega <b>Tesorería</b> solo si este trámite exige que apruebe el pago.</Callout>
                 <ol className="space-y-3">
                     {form.steps.map((s, i) => (
                         <li key={i} className="flex gap-3">
@@ -144,12 +148,18 @@ export default function ProcedureEditor() {
                                 {i < form.steps.length - 1 && <span className="w-0.5 flex-1 bg-line" />}
                             </div>
                             <div className="mb-1 grid grid-cols-1 flex-1 gap-3 rounded-xl border border-line bg-surface-2/50 p-4 md:grid-cols-12">
-                                <Field label="Nombre del paso" className="md:col-span-5"><Input value={s.name} onChange={(e) => setItem('steps', i, 'name', e.target.value)} /></Field>
-                                <Field label="Área responsable" className="md:col-span-4">
+                                <Field label="Nombre del paso" className={i === 0 ? 'md:col-span-5' : 'md:col-span-4'}><Input value={s.name} onChange={(e) => setItem('steps', i, 'name', e.target.value)} /></Field>
+                                <Field label="Área responsable" className={i === 0 ? 'md:col-span-4' : 'md:col-span-3'}>
                                     <Select value={s.area} disabled={i === 0} onChange={(e) => setItem('steps', i, 'area', e.target.value)}>
                                         {Object.entries(meta.step_areas).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                     </Select>
                                 </Field>
+                                {i > 0 && (
+                                    <Field label="Plazo (días hábiles)" className="md:col-span-2">
+                                        <Input type="number" min="1" max="60" value={s.days ?? 3} onChange={(e) => setItem('steps', i, 'days', e.target.value === '' ? '' : Math.min(60, Math.max(1, Number(e.target.value) || 1)))}
+                                            onBlur={() => !s.days && setItem('steps', i, 'days', 3)} />
+                                    </Field>
+                                )}
                                 <div className="flex items-end justify-end gap-0.5 md:col-span-3">
                                     <IconButton icon={ArrowUp} label="Subir" disabled={i <= 1} onClick={() => move('steps', i, -1)} />
                                     <IconButton icon={ArrowDown} label="Bajar" disabled={i === 0 || i === form.steps.length - 1} onClick={() => move('steps', i, 1)} />
@@ -159,7 +169,10 @@ export default function ProcedureEditor() {
                                 {i > 0 && (
                                     <div className="flex flex-wrap gap-5 md:col-span-12">
                                         <Toggle checked={s.can_observe} onChange={(v) => setItem('steps', i, 'can_observe', v)} label="Puede observar" />
-                                        <Toggle checked={s.can_reject} onChange={(v) => setItem('steps', i, 'can_reject', v)} label="Puede denegar" />
+                                        {i > 1 && <Toggle checked={s.can_return ?? true} onChange={(v) => setItem('steps', i, 'can_return', v)} label="Puede derivar a un área anterior" />}
+                                        {i < form.steps.length - 1
+                                            ? <Toggle checked={!!s.can_email} onChange={(v) => setItem('steps', i, 'can_email', v)} label="Puede enviar documentos al correo del estudiante" />
+                                            : <Badge tone="teal">Envía el documento final al correo automáticamente</Badge>}
                                         {s.area === 'TESORERIA' && <Badge tone="gold">Tesorería aprueba el pago</Badge>}
                                         {i === form.steps.length - 1 && <Badge tone="navy">Último paso: sube el documento final</Badge>}
                                     </div>

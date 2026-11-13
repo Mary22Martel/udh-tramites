@@ -54,7 +54,8 @@ function App() {
                 <Route path="/mis-tramites" element={<Protected roles={['ESTUDIANTE']}><MySubmissions /></Protected>} />
                 <Route path="/mis-pagos" element={<Protected roles={['ESTUDIANTE']}><MyPayments /></Protected>} />
                 <Route path="/caja" element={<Protected roles={['ESTUDIANTE', 'TESORERIA', 'ADMINISTRADOR']}><CajaPayments /></Protected>} />
-                <Route path="/pagos" element={<Protected roles={['TESORERIA', 'ADMINISTRADOR']}><Payments /></Protected>} />
+                <Route path="/pagos" element={<Protected roles={['TESORERIA', 'ADMINISTRADOR']}><Payments key="pagos" /></Protected>} />
+                <Route path="/cobrar" element={<Protected roles={['TESORERIA', 'ADMINISTRADOR']}><Payments key="cobrar" initialStatus="PENDIENTE" /></Protected>} />
                 {/* Personal de áreas */}
                 <Route path="/panel" element={<Protected roles={['staff']}><StaffHome /></Protected>} />
                 <Route path="/bandeja" element={<Protected roles={['staff']}><Inbox scope="pendientes" /></Protected>} />

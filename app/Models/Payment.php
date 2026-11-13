@@ -27,6 +27,7 @@ class Payment extends Model
         'code', 'submission_id', 'user_id', 'procedure_id', 'concept', 'amount', 'currency', 'status',
         'method', 'reference', 'transaction_code', 'gateway', 'gateway_order_id', 'gateway_charge_id',
         'attempts', 'failure_reason', 'paid_at', 'expires_at',
+        'card_brand', 'card_issuer', 'card_type', 'card_last4',
     ];
 
     protected function casts(): array
@@ -55,6 +56,66 @@ class Payment extends Model
         return $code;
     }
 
+    /** Bancos más comunes en Perú: nombre que entrega Culqi → nombre corto para mostrar. */
+    public const BANKS = [
+        'CREDITO' => 'BCP', 'BCP' => 'BCP',
+        'INTERBANK' => 'Interbank', 'INTERNACIONAL DEL PERU' => 'Interbank',
+        'BBVA' => 'BBVA', 'CONTINENTAL' => 'BBVA',
+        'SCOTIABANK' => 'Scotiabank',
+        'NACION' => 'Banco de la Nación',
+        'PICHINCHA' => 'Banco Pichincha', 'FINANCIERO' => 'Banco Pichincha',
+        'BANBIF' => 'BanBif', 'INTERAMERICANO' => 'BanBif',
+        'FALABELLA' => 'Banco Falabella', 'RIPLEY' => 'Banco Ripley',
+        'GNB' => 'Banco GNB', 'CAJA AREQUIPA' => 'Caja Arequipa', 'CAJA HUANCAYO' => 'Caja Huancayo',
+    ];
+
+    /** Convierte el nombre del banco emisor que da Culqi (p. ej. "BANCO DE CREDITO DEL PERU") a uno corto ("BCP"). */
+    public static function shortBank(?string $issuer): ?string
+    {
+        if (! $issuer) {
+            return null;
+        }
+        $up = mb_strtoupper(\Illuminate\Support\Str::ascii($issuer));
+        foreach (self::BANKS as $needle => $short) {
+            if (str_contains($up, $needle)) {
+                return $short;
+            }
+        }
+
+        return \Illuminate\Support\Str::title(mb_strtolower($issuer));
+    }
+
+    /**
+     * SOLO para la pasarela de prueba y los datos de demostración: inventa el banco y la marca
+     * a partir del número (con Culqi real estos datos vienen de Culqi).
+     */
+    public static function simulatedCard(?string $number = null): array
+    {
+        $number = preg_replace('/\D/', '', (string) $number) ?: (string) random_int(4000_0000, 5599_9999).'00001111';
+        $banks = ['BCP', 'BCP', 'BCP', 'Interbank', 'Interbank', 'BBVA', 'BBVA', 'Banco de la Nación', 'Scotiabank', 'Banco Pichincha'];
+        $brand = match ($number[0]) { '4' => 'Visa', '5', '2' => 'Mastercard', '3' => 'American Express', default => 'Visa' };
+
+        return [
+            'card_brand' => $brand,
+            'card_issuer' => $banks[crc32(substr($number, 0, 8).substr($number, -4)) % count($banks)],
+            'card_type' => crc32($number) % 3 === 0 ? 'crédito' : 'débito',
+            'card_last4' => substr($number, -4),
+        ];
+    }
+
+    /** "Tarjeta BCP · Visa ****1111" / "Yape" / "Caja UDH". */
+    public function methodDetail(): ?string
+    {
+        if (! $this->method) {
+            return null;
+        }
+        if ($this->method !== 'TARJETA') {
+            return self::METHODS[$this->method] ?? $this->method;
+        }
+
+        return trim('Tarjeta '.($this->card_issuer ?: '').($this->card_brand ? ' · '.$this->card_brand : '').($this->card_last4 ? ' ****'.$this->card_last4 : ''));
+    }
+
     public function toPublic(bool $withSubmission = false): array
     {
         $data = [
@@ -69,6 +130,11 @@ class Payment extends Model
             'reference' => $this->reference,
             'transaction_code' => $this->transaction_code,
             'gateway' => $this->gateway,
+            'card_brand' => $this->card_brand,
+            'card_issuer' => $this->card_issuer,
+            'card_type' => $this->card_type,
+            'card_last4' => $this->card_last4,
+            'method_detail' => $this->methodDetail(),
             'failure_reason' => $this->failure_reason,
             'paid_at' => $this->paid_at?->toIso8601String(),
             'expires_at' => $this->expires_at?->toIso8601String(),
