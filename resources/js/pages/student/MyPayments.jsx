@@ -64,7 +64,7 @@ export default function MyPayments() {
                                 {p.status === 'PAGADO' ? (
                                     p.method === 'CAJA'
                                         ? <p className="text-sm text-muted"><span className="inline-flex items-center gap-1 font-semibold text-ink"><Store className="size-4" /> Pagado en Caja UDH</span> · {fmtDateTime(p.paid_at)}<br /><span className="font-mono text-xs">Boleta {p.reference}</span></p>
-                                        : <p className="text-sm text-muted">{p.method_label} {p.reference} · {fmtDateTime(p.paid_at)}<br /><span className="font-mono text-xs">{p.transaction_code}</span></p>
+                                        : <p className="text-sm text-muted">{p.method === 'TARJETA' ? p.method_detail : `${p.method_label} ${p.reference || ''}`} · {fmtDateTime(p.paid_at)}<br /><span className="font-mono text-xs">{p.transaction_code}</span></p>
                                 ) : (
                                     <>
                                         {(() => {

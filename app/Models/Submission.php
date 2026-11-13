@@ -23,6 +23,7 @@ class Submission extends Model
         'student_id', 'faculty_id', 'program_id', 'description', 'status', 'current_step_index',
         'current_area', 'channel_id', 'payment_status', 'payment_method', 'payment_operation',
         'payment_amount', 'payment_date', 'observation', 'final_document_code', 'finished_at',
+        'step_started_at', 'step_due_at',
     ];
 
     protected function casts(): array
@@ -33,6 +34,8 @@ class Submission extends Model
             'payment_date' => 'date:Y-m-d',
             'observation' => 'array',
             'finished_at' => 'datetime',
+            'step_started_at' => 'datetime',
+            'step_due_at' => 'datetime',
         ];
     }
 

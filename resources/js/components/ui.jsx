@@ -167,7 +167,10 @@ export function FileDrop({ file, onChange, accept, hint, compact }) {
                 over ? 'border-teal-udh bg-teal-udh/5' : file ? 'border-teal-udh/50 bg-teal-udh/5' : 'border-line hover:border-teal-udh/60',
             )}
         >
-            <input ref={ref} type="file" accept={accept} className="hidden" onChange={(e) => e.target.files[0] && onChange(e.target.files[0])} />
+            {/* sr-only (no "hidden"): algunos celulares no abren el selector de un input oculto con display:none */}
+            <input ref={ref} type="file" accept={accept} className="sr-only" tabIndex={-1}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => { const f = e.target.files[0]; e.target.value = ''; f && onChange(f); }} />
             {file ? <CheckCircle2 className="size-5 shrink-0 text-teal-udh" /> : <UploadCloud className="size-5 shrink-0 text-muted" />}
             <div className="min-w-0 flex-1 text-sm">
                 {file ? (
@@ -178,7 +181,7 @@ export function FileDrop({ file, onChange, accept, hint, compact }) {
                 {hint && <p className="text-xs text-muted">{hint}</p>}
             </div>
             {file && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onChange(null); ref.current.value = ''; }} className="text-muted hover:text-red-600">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onChange(null); }} className="text-muted hover:text-red-600">
                     <X className="size-4" />
                 </button>
             )}

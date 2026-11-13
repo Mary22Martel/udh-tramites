@@ -41,22 +41,32 @@ class CajaController extends Controller
             'tramites' => $rows->whereNotNull('payment_id')->count(),
             'pending' => $pending->values(),
             'pending_total' => (float) $pending->sum('amount'),
-            'can_charge' => $isStaff && (bool) config('services.caja.simulate'),
+            'can_charge' => $isStaff,
             'data' => $rows->map(fn ($r) => $caja->present($r))->values(),
         ];
     }
 
-    /** SIMULACIÓN DE CAJA: Tesorería cobra una deuda pendiente como lo haría el cajero. */
+    /**
+     * Tesorería cobra un pago pendiente (actúa como Caja UDH): el ticket queda pagado,
+     * el pago se registra en caja con su boleta y el trámite pasa a "en proceso".
+     */
     public function cobrar(Request $request, Payment $payment, CajaService $caja)
     {
         $u = $request->user();
         abort_unless($u->isAdmin() || WorkflowService::isTreasury($u), 403);
-        abort_unless(config('services.caja.simulate'), 404);
-        abort_if($payment->status !== 'PENDIENTE', 422, 'Esta deuda ya no está pendiente.');
+        abort_if($payment->status !== 'PENDIENTE', 422, 'Este pago ya no está pendiente.');
+        if ($payment->expires_at?->isPast()) {
+            abort(422, 'Este pago venció (pasaron los días hábiles para pagar). El estudiante debe volver a solicitar el trámite.');
+        }
 
-        $row = $caja->simulate($payment, 'Caja · '.$u->name);
+        $row = $caja->simulate($payment, 'Tesorería · '.$u->name);
         $caja->sync($payment->user);
 
-        return ['ok' => true, 'receipt_number' => $row->receipt_number, 'message' => "Cobrado. Boleta {$row->receipt_number}. El trámite ya pasó a «en proceso»."];
+        return [
+            'ok' => true,
+            'receipt_number' => $row->receipt_number,
+            'payment' => $payment->fresh()->toPublic(true),
+            'message' => "Pago registrado. Boleta {$row->receipt_number}. El trámite ya pasó a «en proceso».",
+        ];
     }
 }

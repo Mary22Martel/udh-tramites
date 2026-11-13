@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Procedure;
+use App\Models\ProcedureStep;
 use App\Models\Program;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -71,7 +72,7 @@ class ProcedureBuilder
         $steps = [[
             'name' => 'Solicitud del estudiante',
             'description' => 'El estudiante registra su solicitud y su justificación.',
-            'area' => 'ESTUDIANTE', 'action_required' => 'SOLICITUD', 'can_observe' => false, 'can_reject' => false,
+            'area' => 'ESTUDIANTE', 'action_required' => 'SOLICITUD', 'can_observe' => false, 'can_return' => false,
         ]];
         $last = count($flow) - 1;
         foreach ($flow as $i => $area) {
@@ -175,7 +176,10 @@ class ProcedureBuilder
                         'action_required' => $step['action_required'] ?? 'REVISAR_REQUISITOS',
                         'document_requirement' => $step['document_requirement'] ?? null,
                         'can_observe' => (bool) ($step['can_observe'] ?? true),
-                        'can_reject' => (bool) ($step['can_reject'] ?? true),
+                        'can_reject' => false, // ya no se rechaza: se observa (al estudiante) o se deriva (a un área anterior)
+                        'can_return' => (bool) ($step['can_return'] ?? true),
+                        // Plazo del área en días hábiles (el paso del estudiante no tiene plazo; si viene vacío o en 0, se usan 3)
+                        'days' => ($step['area'] ?? '') === 'ESTUDIANTE' ? 0 : ((int) ($step['days'] ?? 0) ?: ProcedureStep::DEFAULT_DAYS),
                     ]);
                 }
             }
@@ -207,7 +211,7 @@ class ProcedureBuilder
             'program_ids' => [$program->id],
             'parent_id' => $base->id,
             'requirements' => $base->requirements->map->only(['name', 'description', 'is_required', 'file_types', 'max_size_mb'])->all(),
-            'steps' => $base->steps->map->only(['name', 'description', 'area', 'action_required', 'document_requirement', 'can_observe', 'can_reject'])->all(),
+            'steps' => $base->steps->map->only(['name', 'description', 'area', 'action_required', 'document_requirement', 'can_observe', 'can_return', 'days'])->all(),
         ]);
     }
 }

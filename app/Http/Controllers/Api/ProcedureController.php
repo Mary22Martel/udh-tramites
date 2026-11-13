@@ -147,7 +147,7 @@ class ProcedureController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'category' => ['required', Rule::in(Procedure::CATEGORIES)],
-            'estimated_days' => ['required', 'integer', 'min:1', 'max:365'],
+            'estimated_days' => ['nullable', 'integer', 'min:1', 'max:365'], // ya no se usa: el plazo es por área
             'cost' => ['required', 'numeric', 'min:0'],
             'requires_payment' => ['boolean'],
             'payment_concept' => ['nullable', 'string', 'max:255'],
@@ -170,9 +170,24 @@ class ProcedureController extends Controller
             'steps.*.action_required' => ['required', 'string'],
             'steps.*.document_requirement' => ['nullable', 'string'],
             'steps.*.can_observe' => ['boolean'],
-            'steps.*.can_reject' => ['boolean'],
+            'steps.*.can_return' => ['boolean'],
+            'steps.*.days' => ['nullable', 'integer', 'min:0', 'max:60'], // el paso 1 (estudiante) no tiene plazo
         ], [
-            'steps.min' => 'El flujo debe tener al menos 2 pasos (solicitud del estudiante + 1 área).',
+            // Mensajes claros para el administrador (:position = número del paso o del documento)
+            'name.required' => 'Escribe el nombre del trámite.',
+            'code.unique' => 'Ya existe otro trámite con ese código.',
+            'category.required' => 'Elige la categoría del trámite.',
+            'cost.required' => 'Indica el costo (pon 0 si es gratuito).',
+            'cost.min' => 'El costo no puede ser negativo.',
+            'requirements.*.name.required' => 'El documento :position no tiene nombre.',
+            'requirements.*.max_size_mb.min' => 'El tamaño máximo del documento :position debe ser de al menos 1 MB.',
+            'requirements.*.max_size_mb.max' => 'El tamaño máximo del documento :position no puede pasar de 50 MB.',
+            'steps.required' => 'El trámite necesita un flujo de atención.',
+            'steps.min' => 'El flujo debe tener al menos 2 pasos: la solicitud del estudiante y 1 área.',
+            'steps.*.name.required' => 'El paso :position no tiene nombre.',
+            'steps.*.area.required' => 'Elige el área responsable del paso :position.',
+            'steps.*.days.integer' => 'El plazo del paso :position debe ser un número de días.',
+            'steps.*.days.max' => 'El plazo del paso :position no puede pasar de 60 días hábiles.',
         ]);
     }
 
@@ -196,7 +211,7 @@ class ProcedureController extends Controller
             'faculties' => $p->relationLoaded('faculties') ? $p->faculties->map->only(['id', 'code', 'name'])->values() : [],
             'submissions_count' => $p->submissions_count ?? null,
             'requirements' => $p->relationLoaded('requirements') ? $p->requirements->map->only(['id', 'name', 'description', 'is_required', 'file_types', 'max_size_mb'])->values() : [],
-            'steps' => $p->relationLoaded('steps') ? $p->steps->map(fn ($s) => $s->only(['id', 'step_number', 'name', 'description', 'area', 'action_required', 'document_requirement', 'can_observe', 'can_reject'])
+            'steps' => $p->relationLoaded('steps') ? $p->steps->map(fn ($s) => $s->only(['id', 'step_number', 'name', 'description', 'area', 'action_required', 'document_requirement', 'can_observe', 'can_return', 'days'])
                 + ['area_label' => $this->wf->areaLabel($s->area, $this->ctx)])->values() : [],
         ];
     }

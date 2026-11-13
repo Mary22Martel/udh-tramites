@@ -11,6 +11,7 @@ export const ACTION_LABELS = {
     CREACION: 'Solicitud registrada',
     PAGO_REALIZADO: 'Pago realizado',
     CORREO_ENVIADO: 'Enviado por correo',
+    DERIVADO: 'Devuelto a un área anterior',
     VENCIDO: 'Anulada por falta de pago',
     PAGO_REGISTRADO: 'Pago registrado',
     PAGO_VALIDADO: 'Pago validado',
@@ -80,4 +81,13 @@ export function payDeadline(ticket) {
     const n = ticket.days_left;
     const left = n === 0 ? 'vence hoy' : n === 1 ? 'queda 1 día hábil' : `quedan ${n} días hábiles`;
     return { date, left, urgent: n !== null && n <= 1, text: `Paga hasta el ${date} · ${left}` };
+}
+
+/** Plazo del área actual: "Vence hoy", "Quedan 2 días hábiles", "Fuera de plazo". */
+export function stepDue(due) {
+    if (!due) return null;
+    if (due.overdue) return { text: 'Fuera de plazo', short: 'Fuera de plazo', tone: 'red' };
+    const n = due.days_left;
+    if (n === 0) return { text: 'Vence hoy', short: 'Vence hoy', tone: 'amber' };
+    return { text: n === 1 ? 'Queda 1 día hábil' : `Quedan ${n} días hábiles`, short: n === 1 ? '1 día' : `${n} días`, tone: n <= 1 ? 'amber' : 'teal' };
 }

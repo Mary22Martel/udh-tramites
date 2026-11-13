@@ -13,8 +13,8 @@ export default function Reports() {
     const totals = data.data.reduce((a, r) => ({ total: a.total + r.total, fin: a.fin + r.finalizado, rev: a.rev + r.revenue, own: a.own + r.own_procedures }), { total: 0, fin: 0, rev: 0, own: 0 });
 
     const exportCsv = () => {
-        const head = ['Código', 'Carrera', 'Nivel', 'Facultad', 'Estudiantes', 'Trámites exclusivos', 'Trámites disponibles', 'Solicitudes', 'En proceso', 'Observadas', 'Finalizadas', 'Denegadas', 'Recaudado'];
-        const rows = data.data.map((r) => [r.code, r.name, r.level, r.faculty, r.students, r.own_procedures, r.available_procedures, r.total, r.en_proceso, r.observado, r.finalizado, r.rechazado, r.revenue.toFixed(2)]);
+        const head = ['Código', 'Carrera', 'Nivel', 'Facultad', 'Estudiantes', 'Trámites exclusivos', 'Trámites disponibles', 'Solicitudes', 'En proceso', 'Observadas', 'Finalizadas', 'Recaudado'];
+        const rows = data.data.map((r) => [r.code, r.name, r.level, r.faculty, r.students, r.own_procedures, r.available_procedures, r.total, r.en_proceso, r.observado, r.finalizado, r.revenue.toFixed(2)]);
         const csv = '﻿' + [head, ...rows].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -78,8 +78,8 @@ export default function Reports() {
                                     <tr className="border-b border-line bg-surface-2/60">
                                         <td colSpan={9} className="px-5 py-4">
                                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                <div className="grid grid-cols-4 gap-2 text-center">
-                                                    {[['En proceso', r.en_proceso, 'text-sky-600'], ['Observadas', r.observado, 'text-amber-600'], ['Finalizadas', r.finalizado, 'text-teal-udh-600'], ['Denegadas', r.rechazado, 'text-red-600']].map(([l, v, c]) => (
+                                                <div className="grid grid-cols-3 gap-2 text-center">
+                                                    {[['En proceso', r.en_proceso, 'text-sky-600'], ['Observadas', r.observado, 'text-amber-600'], ['Finalizadas', r.finalizado, 'text-teal-udh-600']].map(([l, v, c]) => (
                                                         <div key={l} className="rounded-xl bg-surface p-3 ring-1 ring-line"><p className={cx('text-xl font-extrabold', c)}>{v}</p><p className="text-[11px] text-muted">{l}</p></div>
                                                     ))}
                                                 </div>

@@ -40,6 +40,7 @@ class Presenter
                 'tasks' => $u->isStudent() ? 0 : $wf->tasksQuery($u)->count(),
                 'observed' => $u->isStudent() ? Submission::where('student_id', $u->id)->where('status', 'OBSERVADO')->count() : 0,
                 'payments' => $u->isStudent() ? \App\Models\Payment::where('user_id', $u->id)->where('status', 'PENDIENTE')->count() : 0,
+                'pending_payments' => WorkflowService::isTreasury($u) ? \App\Models\Payment::where('status', 'PENDIENTE')->count() : 0,
                 'notifications' => UserNotification::where('user_id', $u->id)->whereNull('read_at')->count(),
             ];
         }
@@ -74,12 +75,21 @@ class Presenter
                 'area' => $step->area,
                 'area_label' => $wf->areaLabel($step->area, $s),
                 'action_required' => $step->action_required,
+                'days' => $step->days ?: ProcedureStep::DEFAULT_DAYS,
+            ] : null,
+            // Plazo del área actual (días hábiles configurados en el paso)
+            'step_due' => $s->status === 'EN_PROCESO' && $s->step_due_at ? [
+                'due_at' => $s->step_due_at->toIso8601String(),
+                'started_at' => $s->step_started_at?->toIso8601String(),
+                'days_left' => \App\Support\BusinessDays::remaining($s->step_due_at),
+                'overdue' => $s->step_due_at->isPast(),
             ] : null,
             'channel' => $s->channel?->name,
             'progress' => $total ? ($s->status === 'FINALIZADO' ? 100 : (int) round(($s->current_step_index / $total) * 100)) : 0,
             'total_steps' => $total,
             'observation' => $s->observation,
             'ticket' => ($t = $s->payments->sortByDesc('id')->first()) ? $t->only(['id', 'code', 'status', 'amount', 'method', 'reference']) + [
+                'method_detail' => $t->methodDetail(),
                 'expires_at' => $t->expires_at?->toIso8601String(),
                 'days_left' => $t->status === 'PENDIENTE' && $t->expires_at ? \App\Support\BusinessDays::remaining($t->expires_at) : null,
             ] : null,
@@ -123,7 +133,8 @@ class Presenter
                 'area_label' => $wf->areaLabel($st->area, $s),
                 'action_required' => $st->action_required,
                 'can_observe' => $st->can_observe,
-                'can_reject' => $st->can_reject,
+                'can_return' => $st->can_return,
+                'days' => $st->days ?: ProcedureStep::DEFAULT_DAYS,
                 'state' => $state,
             ];
         })->all();
@@ -136,6 +147,9 @@ class Presenter
             'size_bytes' => $d->size_bytes,
             'has_file' => (bool) $d->path,
             'uploaded_by_name' => $d->uploaded_by_name,
+            // El área que subió el documento puede enviarlo al correo del estudiante con un botón
+            'can_mail' => $d->path && in_array($d->type, ['DOCUMENTO', 'DOCUMENTO_FINAL'], true)
+                && ($viewer->isAdmin() || $d->uploaded_by === $viewer->id),
             'official_number' => $d->official_number,
             'created_at' => $d->created_at?->toIso8601String(),
         ])->all();
@@ -158,11 +172,12 @@ class Presenter
         $row['permissions'] = [
             'can_act' => $canAct,
             'can_observe' => $canAct && ($current?->can_observe || $viewer->isAdmin()),
-            'can_reject' => $canAct && ($current?->can_reject || $viewer->isAdmin()),
+            'can_return' => $canAct && ($current?->can_return || $viewer->isAdmin()) && count($returnTargets = $wf->returnTargets($s)) > 0,
             'can_correct' => $s->status === 'OBSERVADO' && $s->student_id === $viewer->id,
             'is_last_step' => $canAct && $isLast,          // debe subir el documento final
             'is_payment_step' => $canAct && $current?->action_required === 'VERIFICAR_PAGO',
         ];
+        $row['return_targets'] = $canAct ? $wf->returnTargets($s) : [];
 
         return $row;
     }

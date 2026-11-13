@@ -26,7 +26,7 @@ export default function StaffHome() {
                 actions={<Button icon={Inbox} onClick={() => navigate('/bandeja')}>Ir a mi bandeja</Button>} />
             <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <StatCard label="Pendientes" value={data.kpis.pending} icon={Inbox} tone="gold" hint="Esperan tu atención" />
-                <StatCard label="Con más de 3 días" value={data.kpis.overdue} icon={AlarmClock} tone="red" hint="Prioriza estas solicitudes" />
+                <StatCard label="Fuera de plazo" value={data.kpis.overdue} icon={AlarmClock} tone="red" hint="Superaron los días de tu área" />
                 <StatCard label="Atendidas este mes" value={data.kpis.this_month} icon={TrendingUp} tone="teal" />
                 <StatCard label="Observaciones emitidas" value={data.kpis.observed} icon={MessageSquareWarning} tone="amber" />
             </div>
@@ -52,7 +52,7 @@ export default function StaffHome() {
                 </Card>
             </div>
             <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-lg font-extrabold text-ink">Las más antiguas en tu bandeja</h2>
+                <h2 className="text-lg font-extrabold text-ink">Las más urgentes según el plazo</h2>
                 <button onClick={() => navigate('/bandeja')} className="flex items-center gap-1 text-sm font-semibold text-accent">Ver bandeja <ArrowRight className="size-4" /></button>
             </div>
             <SubmissionList items={data.oldest} onOpen={(s) => openDetail(s.id)} emptyTitle="No tienes solicitudes pendientes" />

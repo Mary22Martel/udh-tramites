@@ -28,7 +28,7 @@ export default function Inbox({ scope }) {
             <PageHeader
                 kicker={pending ? 'Bandeja de tareas' : 'Historial'}
                 title={pending ? 'Solicitudes por atender' : 'Solicitudes atendidas'}
-                description={pending ? `Solicitudes cuyo paso actual corresponde a ${who}. Abre cada una para aprobar, observar o denegar.` : 'Solicitudes en las que registraste alguna actuación.'}
+                description={pending ? `Solicitudes cuyo paso actual corresponde a ${who}. Abre cada una para aprobar, observar (al estudiante) o derivar a un área anterior.` : 'Solicitudes en las que registraste alguna actuación.'}
             />
             {pending && user.role === 'MATRICULA' && user.counts && (
                 <Callout className="mb-4">Las solicitudes se reparten por <b>ventanillas</b> según la carrera del estudiante. Los operadores ven solo su ventanilla; la jefatura ve todas.</Callout>

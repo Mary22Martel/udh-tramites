@@ -60,7 +60,8 @@ export default function PaymentDetail({ id, onClose }) {
                                 </>
                             ) : (
                                 <>
-                                    <Row label="Medio">{p.method_label ? `${p.method_label} ${p.reference || ''}` : null}</Row>
+                                    <Row label="Medio">{p.method === 'TARJETA' ? p.method_detail : p.method_label ? `${p.method_label} ${p.reference || ''}` : null}</Row>
+                                    {p.method === 'TARJETA' && p.card_type && <Row label="Tipo de tarjeta">{p.card_type}</Row>}
                                     <Row label="Transacción" mono>{p.transaction_code}</Row>
                                     <Row label="Pasarela">{p.gateway === 'CULQI' ? 'Culqi' : p.gateway ? 'Prueba' : null}</Row>
                                 </>

@@ -56,7 +56,7 @@ class ReceiptRenderer
                 ['Medio de pago', 'Pago presencial en Caja UDH'],
                 ['N° de boleta', $p->reference ?? '—'],
             ] : [
-                ['Medio de pago', trim((Payment::METHODS[$p->method] ?? $p->method).' '.$p->reference)],
+                ['Medio de pago', $p->method === 'TARJETA' ? $p->methodDetail() : trim((Payment::METHODS[$p->method] ?? $p->method).' '.$p->reference)],
                 ['N° de transacción', $p->transaction_code ?? '—'],
                 ['Pasarela', $p->gateway === 'CULQI' ? 'Culqi' : 'Pasarela de prueba'],
             ]),
